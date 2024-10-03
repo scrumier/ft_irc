@@ -7,7 +7,7 @@ SRCS = $(addprefix $(SRCDIR), \
 OBJS = $(SRCS:$(SRCDIR)%.cpp=$(OBJDIR)%.o)
 DEPS = $(OBJS:.o=.d)
 
-NAME = ft_irc
+NAME = ircserv
 CC = c++
 CFLAGS = -Wall -Wextra -Werror -std=c++98
 INC = -I includes/
