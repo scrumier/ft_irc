@@ -15,13 +15,13 @@ INC = -I includes/
 all: $(NAME)
 	@echo "\033[32mCompiled $(NAME)\033[0m"
 
-$(NAME): $(OBJS)
+$(NAME): $(OBJDIR) $(OBJS)
 	@$(CC) $(CFLAGS) $(OBJS) -o $(NAME)
 
-$(OBJDIR)%.o: $(SRCDIR)%.cpp | $(OBJDIR)
-	@$(CC) $(CFLAGS) $(INC) -MMD -MP -c $< -o $@
+$(OBJDIR)%.o: $(SRCDIR)%.cpp
+	@$(CC) $(CFLAGS) $(INC) -MMD -c $< -o $@
 
-$(OBJDIR):
+$(OBJDIR): 
 	@mkdir -p $(OBJDIR)
 
 -include $(DEPS)
