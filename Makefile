@@ -14,6 +14,7 @@ INC = -I includes/
 
 all: $(NAME)
 	@echo "\033[32mCompiled $(NAME)\033[0m"
+	@echo "\033[32mUsage: ./$(NAME) <port> <password>\033[0m"
 
 $(NAME): $(OBJDIR) $(OBJS)
 	@$(CC) $(CFLAGS) $(OBJS) -o $(NAME)
