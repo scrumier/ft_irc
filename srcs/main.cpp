@@ -8,7 +8,7 @@ int main(int ac, char *av[]) {
 
     try {
         int port = atoi(av[1]);
-        Server server(port);
+        Server server(port, av[2]);
         server.run();
     } catch (const std::exception &e) {
         std::cerr << e.what() << std::endl;

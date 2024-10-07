@@ -2,7 +2,7 @@
 
 Server::Server() {}
 
-Server::Server(int port) {
+Server::Server(int port, const std::string& password) : password(password) {
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {
         throw std::runtime_error("Socket creation failed");
@@ -87,24 +87,99 @@ void Server::handle_new_connection() {
         client_poll_fd.fd = client_fd;
         client_poll_fd.events = POLLIN;
         poll_fds.push_back(client_poll_fd);
+
+        struct ClientInfo new_client;
+        new_client.authenticated = false;
+        new_client.quitting = false;
+
+        new_client.nickname = "Anonymous";
+        new_client.username = "Anonymous";
+
+        clients[client_fd] = new_client;
+
         std::cout << "New client connected: " << client_fd << std::endl;
+        std::cout << "Assigned nickname: " << new_client.nickname << std::endl;
     }
 }
 
 void Server::handle_nick(int client_fd, const std::string& args) {
+    if (args.size() == 0) {
+        // print the actual nickname
+        std::string name = clients[client_fd].nickname;
+        std::string msg = "Your nickname is: " + name + "\n";
+        send(client_fd, msg.c_str(), msg.size(), 0);
+        return;
+    }
+    else if (args.size() > 9) {
+        std::string error_msg = "Nickname too long. Max 9 characters.\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+    clients[client_fd].nickname = args;
     std::cout << "Client " << client_fd << " set nickname to " << args << std::endl;
 }
 
 void Server::handle_user(int client_fd, const std::string& args) {
+    if (args.size() == 0) {
+        // print the actual username
+        std::string name = clients[client_fd].username;
+        std::string msg = "Your username is: " + name + "\n";
+        send(client_fd, msg.c_str(), msg.size(), 0);
+        return;
+    }
+    else if (args.size() > 9) {
+        std::string error_msg = "Username too long. Max 9 characters.\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+    clients[client_fd].username = args;
     std::cout << "Client " << client_fd << " set username to " << args << std::endl;
 }
 
 void Server::handle_join(int client_fd, const std::string& args) {
-    std::cout << "Client " << client_fd << " joined channel " << args << std::endl;
+    std::string channel_name = args;
+    if (channels.find(channel_name) == channels.end()) {
+        channels[channel_name] = std::vector<int>();
+    }
+    channels[channel_name].push_back(client_fd);
+    std::cout << "Client " << client_fd << " joined channel " << channel_name << std::endl;
 }
+
 
 void Server::handle_privmsg(int client_fd, const std::string& args) {
     std::cout << "Client " << client_fd << " sent message: " << args << std::endl;
+}
+
+void Server::handle_pass(int client_fd, const std::string& args) {
+    if (clients[client_fd].authenticated) {
+        std::string error_msg = "Already authenticated.\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+    if (args == password) {
+        clients[client_fd].authenticated = true;
+        std::string msg = "Password accepted.\n";
+        send(client_fd, msg.c_str(), msg.size(), 0);
+        std::cout << "Client " << client_fd << " authenticated.\n";
+    } else {
+        std::string error_msg = "Invalid password.\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        close_client(client_fd);
+    }
+}
+
+void Server::handle_quit(int i, const std::string& args) {
+    std::string quit_msg;
+
+    if (args.size() > 0) {
+        quit_msg = "Goodbye! Reason: " + args + "\n";
+    } else {
+        quit_msg = "Goodbye!\n";
+    }
+
+    send(poll_fds[i].fd, quit_msg.c_str(), quit_msg.size(), 0);
+
+    clients[poll_fds[i].fd].quitting = true;
 }
 
 void Server::initialize_command_map() {
@@ -112,23 +187,35 @@ void Server::initialize_command_map() {
     command_map["USER"] = &Server::handle_user;
     command_map["JOIN"] = &Server::handle_join;
     command_map["PRIVMSG"] = &Server::handle_privmsg;
+    command_map["PASS"] = &Server::handle_pass;
+    command_map["QUIT"] = &Server::handle_quit;
 }
 
-std::string trim(const std::string& str) {
-    size_t first = str.find_first_not_of(' ');
+std::string Server::my_trim(const std::string& str) {
+    size_t first = str.find_first_not_of(" \n");
     if (first == std::string::npos) {
         return "";
     }
-    size_t last = str.find_last_not_of(' ');
+    size_t last = str.find_last_not_of(" \n");
     return str.substr(first, (last - first + 1));
 }
 
+bool Server::is_command(std::string command)
+{
+    for (std::map<std::string, CommandHandler>::iterator it = command_map.begin();
+                    it != command_map.end(); ++it) {
+        if (it->first == command) {
+            return true;
+        }
+    }
+    return false;
+}
 
 void Server::handle_client_data(size_t i) {
     char buffer[1024];
     int bytes_received = recv(poll_fds[i].fd, buffer, sizeof(buffer) - 1, 0);
 
-    if (bytes_received <= 0) {
+    if (bytes_received <= 0 || clients[poll_fds[i].fd].quitting == true) {
         close_client(i);
     } else {
         buffer[bytes_received] = '\0';
@@ -149,25 +236,23 @@ void Server::handle_client_data(size_t i) {
             command = input;
         }
 
-        command = trim(command);
+        command = my_trim(command);
         if (args.size() > 0)
-            args = trim(args);
+            args = my_trim(args);
 
         for (size_t j = 0; j < command.size(); ++j) {
             command[j] = std::toupper(command[j]);
         }
 
-        std::map<std::string, CommandHandler>::iterator it = command_map.find(command);
-        if (it != command_map.end()) {
+        std::cout << "Received command: |" << command << "|" << std::endl;
+        std::cout << "Received args: |" << args << "|" << std::endl;
+
+        if (is_command(command) == true) {
             std::cout << "Executing command handler for: " << command << std::endl;
+            std::map<std::string, CommandHandler>::iterator it = command_map.find(command);
             (this->*(it->second))(poll_fds[i].fd, args);
         } else {
-            if (command == "QUIT") {
-                close_client(i);
-            } else if (args.size() <= 0) {
-                std::string error_msg = "No arguments\n";
-                send(poll_fds[i].fd, error_msg.c_str(), error_msg.size(), 0);
-            } else {
+            if (!command.empty()) {
                 std::string error_msg = "Command not recognized\n";
                 send(poll_fds[i].fd, error_msg.c_str(), error_msg.size(), 0);
             }
@@ -176,8 +261,12 @@ void Server::handle_client_data(size_t i) {
 }
 
 void Server::close_client(size_t i) {
-    std::cout << "Closing client: " << poll_fds[i].fd << std::endl;
-    close(poll_fds[i].fd);
+    int client_fd = poll_fds[i].fd;
+    close(client_fd);
+    std::cout << "Client " << client_fd << " disconnected" << std::endl;
+    
     poll_fds.erase(poll_fds.begin() + i);
-    std::cout << "Client disconnected, fd " << poll_fds[i].fd << " removed" << std::endl;
+    
+    clients.erase(client_fd);
 }
+
