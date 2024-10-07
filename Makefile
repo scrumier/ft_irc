@@ -4,6 +4,7 @@ OBJDIR = .obj/
 SRCS = $(addprefix $(SRCDIR), \
 		main.cpp \
 		Server.cpp \
+		handle_commands.cpp \
 		)
 OBJS = $(SRCS:$(SRCDIR)%.cpp=$(OBJDIR)%.o)
 DEPS = $(OBJS:.o=.d)

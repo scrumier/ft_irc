@@ -35,7 +35,6 @@ private:
         std::string nickname;
         std::string username;
         bool authenticated;
-        bool quitting;
     };
     std::string password;
     int server_fd;
@@ -44,7 +43,9 @@ private:
     std::map<int, ClientInfo> clients;
     std::map<std::string, std::vector<int> > channels;
 
-    std::map<int, ClientInfo> ClientInfo();
+    void process_command(int client_fd, const std::string& command, const std::string& args);
+    void parse_command(const std::string& input, std::string& command, std::string& args);
+    std::string receive_data(int client_fd);
     void handle_new_connection();
     void handle_client_data(size_t i);
     void close_client(size_t i);
