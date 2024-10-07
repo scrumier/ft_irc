@@ -139,7 +139,8 @@ void Server::handle_client_data(size_t i) {
         }
 
         command = trim(command);
-        args = trim(args);
+        if (args.size() > 0)
+            args = trim(args);
 
         for (size_t j = 0; j < command.size(); ++j) {
             command[j] = std::toupper(command[j]);
@@ -150,12 +151,18 @@ void Server::handle_client_data(size_t i) {
             std::cout << "Executing command handler for: " << command << std::endl;
             (this->*(it->second))(poll_fds[i].fd, args);
         } else {
-            std::string error_msg = "Command not recognized\n";
-            send(poll_fds[i].fd, error_msg.c_str(), error_msg.size(), 0);
+            if (command == "QUIT") {
+                close_client(i);
+            } else if (args.size() <= 0) {
+                std::string error_msg = "No arguments\n";
+                send(poll_fds[i].fd, error_msg.c_str(), error_msg.size(), 0);
+            } else {
+                std::string error_msg = "Command not recognized\n";
+                send(poll_fds[i].fd, error_msg.c_str(), error_msg.size(), 0);
+            }
         }
     }
 }
-
 
 void Server::close_client(size_t i) {
     std::cout << "Closing client: " << poll_fds[i].fd << std::endl;
