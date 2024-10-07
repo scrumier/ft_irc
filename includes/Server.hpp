@@ -23,7 +23,9 @@ class Server {
 public:
     typedef void (Server::*CommandHandler)(int, const std::string&);
     Server(int port);
+    Server();
     ~Server();
+    const Server& operator=(const Server& other);
     void run();
 
 private:

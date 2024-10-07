@@ -1,5 +1,7 @@
 #include "Server.hpp"
 
+Server::Server() {}
+
 Server::Server(int port) {
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {
@@ -33,6 +35,15 @@ Server::Server(int port) {
 
 Server::~Server() {
     close(server_fd);
+}
+
+const Server& Server::operator=(const Server& other) {
+    if (this != &other) {
+        server_fd = other.server_fd;
+        poll_fds = other.poll_fds;
+        command_map = other.command_map;
+    }
+    return *this;
 }
 
 void Server::run() {
