@@ -20,6 +20,7 @@
 
 # include "Client.hpp"
 # include "Server.hpp"
+# include "Channel.hpp"
 
 
 # define BACKLOG 5

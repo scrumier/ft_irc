@@ -168,12 +168,12 @@ void Server::handle_quit(int client_fd, const std::string& args) {
     }
     quit_msg += ".\r\n";
     
-    for (std::map<std::string, std::vector<int> >::iterator it = channels.begin(); it != channels.end(); ++it) {
-        std::vector<int>& channel_clients = it->second;
-        if (std::find(channel_clients.begin(), channel_clients.end(), client_fd) != channel_clients.end()) {
-            for (size_t i = 0; i < channel_clients.size(); ++i) {
-                send(channel_clients[i], quit_msg.c_str(), quit_msg.size(), 0);
-            }
+    for (std::map<std::string, Channel >::iterator it = channels.begin(); it != channels.end(); ++it) {
+        Channel& channel = it->second;
+        std::vector<int>& clients_in_channel = channel.getClients();
+        std::vector<int>::iterator pos = std::find(clients_in_channel.begin(), clients_in_channel.end(), client_fd);
+        if (pos != clients_in_channel.end()) {
+            clients_in_channel.erase(pos);
         }
     }
     
