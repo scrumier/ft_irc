@@ -88,7 +88,7 @@ void Server::handle_new_connection() {
         std::cerr << "Max clients reached. Refusing connection." << std::endl;
         int temp_fd = accept(server_fd, NULL, NULL);
         if (temp_fd != -1) {
-            const char *reject_message = "Server full, cannot accept more clients.\n";
+            const char *reject_message = "Server full, cannot accept more clients.\r\n";
             send(temp_fd, reject_message, strlen(reject_message), 0);
             close(temp_fd);
         }
@@ -105,32 +105,29 @@ void Server::handle_new_connection() {
         client_poll_fd.events = POLLIN;
         poll_fds.push_back(client_poll_fd);
 
-        struct ClientInfo new_client;
-        new_client.authenticated = false;
-
-        new_client.nickname = "Anonymous";
-        new_client.username = "Anonymous";
-
-        clients[client_fd] = new_client;
+        std::string name = "Guest" + intToString(client_fd);
+        clients[client_fd] = Client();
+        clients[client_fd].setNickname(name);
 
         std::cout << "New client connected: " << client_fd << std::endl;
-        std::cout << "Assigned nickname: " << new_client.nickname << std::endl;
+        std::string welcome_msg = "Welcome to the server, " + name + "\r\n";
     }
 }
 
 /*
-* @brief Trim the " " and "\n" characters from the string
+* @brief Trim the " " and "\r\n" characters from the string
 * @param str The string to trim
 * @return The trimmed string
 */
 std::string Server::my_trim(const std::string& str) {
-    size_t first = str.find_first_not_of(" \n");
+    size_t first = str.find_first_not_of(" \r\n");
     if (first == std::string::npos) {
         return "";
     }
-    size_t last = str.find_last_not_of(" \n");
-    return str.substr(first, (last - first + 1));
+    size_t last = str.find_last_not_of(" \r\n");
+    return str.substr(first, last - first + 1);
 }
+
 
 /*
 * @brief check if the command is in the command map
@@ -197,6 +194,7 @@ void Server::parse_command(const std::string& input, std::string& command, std::
     }
 }
 
+
 /*
 * @brief Execute the command if the command is valid
 * @param client_fd The client file descriptor
@@ -205,8 +203,8 @@ void Server::parse_command(const std::string& input, std::string& command, std::
 * @return void
 */
 void Server::process_command(int client_fd, const std::string& command, const std::string& args) {
-    std::cout << "Received command: |" << command << "|" << std::endl;
-    std::cout << "Received args: |" << args << "|" << std::endl;
+    //std::cout << "Received command: |" << command << "|" << std::endl;
+    //std::cout << "Received args: |" << args << "|" << std::endl;
 
     if (is_command(command)) {
         std::cout << "Executing command handler for: " << command << std::endl;
@@ -214,10 +212,22 @@ void Server::process_command(int client_fd, const std::string& command, const st
         (this->*(it->second))(client_fd, args);
     } else {
         if (!command.empty()) {
-            std::string error_msg = "Command not recognized\n";
+            std::string error_msg = "Command not recognized\r\n";
             send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         }
     }
+}
+
+/*
+* @brief Check if there is a "\r\n" at the end of the buffer
+* @param buffer The buffer to check
+* @return true if there is no "\r\n" in the buffer, false otherwise
+*/
+bool notRNInBuffer(std::string buffer) {
+    if (buffer.find("\r\n") == std::string::npos) {
+        return true;
+    }
+    return false;
 }
 
 /*
@@ -227,7 +237,7 @@ void Server::process_command(int client_fd, const std::string& command, const st
 */
 void Server::handle_client_data(size_t i) {
     std::string input = receive_data(poll_fds[i].fd);
-    
+
     if (input.empty()) {
         close_client(i);
     } else {

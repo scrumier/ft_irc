@@ -1,25 +1,7 @@
 #ifndef IRC_HPP
 # define IRC_HPP
 
-#include <iostream>
-#include <vector>
-#include <stdexcept>
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <poll.h>
-#include <cstdlib>
-#include <cstring>
-#include <map>
-#include <string>
-#include <algorithm>
-#include <cctype>
-
-#define BACKLOG 5
-#define MAX_CLIENTS 10
-
-
+# include "ft_irc.hpp"
 
 class Server {
 public:
@@ -31,17 +13,12 @@ public:
     void run();
 
 private:
-    struct ClientInfo {
-        std::string nickname;
-        std::string username;
-        bool authenticated;
-    };
     std::string password;
     int server_fd;
     std::vector<struct pollfd> poll_fds;
     std::map<std::string, CommandHandler> command_map;
-    std::map<int, ClientInfo> clients;
-    std::map<std::string, std::vector<int> > channels;
+    std::map<int, Client> clients;
+    std::map<std::string, Channel > channels;
 
     void process_command(int client_fd, const std::string& command, const std::string& args);
     void parse_command(const std::string& input, std::string& command, std::string& args);
@@ -52,13 +29,13 @@ private:
 	void handle_nick(int client_fd, const std::string& args);
 	void handle_user(int client_fd, const std::string& args);
 	void handle_join(int client_fd, const std::string& args);
-	void handle_privmsg(int client_fd, const std::string& args);
+	void handle_msg(int client_fd, const std::string& args);
     void handle_pass(int client_fd, const std::string& args);
     void handle_quit(int i, const std::string& args);
 	void initialize_command_map();
     bool is_command(std::string command);
     std::string my_trim(const std::string& str);
-
+    bool is_valid_channel_name(const std::string& channel);
 };
 
 #endif
