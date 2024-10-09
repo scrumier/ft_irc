@@ -13,8 +13,8 @@ OBJS = $(SRCS:$(SRCDIR)%.cpp=$(OBJDIR)%.o)
 DEPS = $(OBJS:.o=.d)
 
 NAME = ircserv
-CC = c++
-CFLAGS = -Wall -Wextra -Werror -std=c++98
+CXX = c++
+CXXFLAGS = -Wall -Wextra -Werror -std=c++98
 INC = -I includes/
 
 all: $(NAME)
@@ -22,10 +22,10 @@ all: $(NAME)
 	@echo "\033[32mUsage: ./$(NAME) <port> <password>\033[0m"
 
 $(NAME): $(OBJDIR) $(OBJS)
-	@$(CC) $(CFLAGS) $(OBJS) -o $(NAME)
+	@$(CXX) $(CXXFLAGS) $(OBJS) -o $(NAME)
 
 $(OBJDIR)%.o: $(SRCDIR)%.cpp
-	@$(CC) $(CFLAGS) $(INC) -MMD -c $< -o $@
+	@$(CXX) $(CXXFLAGS) $(INC) -MMD -c $< -o $@
 
 $(OBJDIR): 
 	@mkdir -p $(OBJDIR)
