@@ -11,9 +11,11 @@ private:
     bool authenticated;
     bool admin;
     std::string buffer;
+    int fd;
 
 public:
     Client();
+    Client(int fd);
     ~Client();
     const Client& operator=(const Client& other);
     std::string getNickname() const;
@@ -31,6 +33,7 @@ public:
     std::string& getBuffer();
     void appendToBuffer(const std::string& data);
     void setBuffer(const std::string& buffer);
+    int getFd() const;
 };
 
 #endif

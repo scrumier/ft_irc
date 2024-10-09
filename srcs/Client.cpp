@@ -2,6 +2,8 @@
 
 Client::Client() : nickname("nickname"), username("username"), realname("realname"), authenticated(false), admin(false) {}
 
+Client::Client(int fd) : nickname("nickname"), username("username"), realname("realname"), authenticated(false), admin(false), fd(fd) {}
+
 Client::~Client() {}
 
 const Client& Client::operator=(const Client& other) {
@@ -96,4 +98,8 @@ void Client::appendToBuffer(const std::string& data) {
 
 void Client::setBuffer(const std::string& buffer) {
 	this->buffer = buffer;
+}
+
+int Client::getFd() const {
+	return fd;
 }

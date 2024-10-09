@@ -7,6 +7,7 @@ SRCS = $(addprefix $(SRCDIR), \
 		handle_commands.cpp \
 		Client.cpp \
 		utils.cpp \
+		Channel.cpp \
 		)
 OBJS = $(SRCS:$(SRCDIR)%.cpp=$(OBJDIR)%.o)
 DEPS = $(OBJS:.o=.d)

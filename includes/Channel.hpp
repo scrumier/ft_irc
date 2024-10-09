@@ -2,6 +2,7 @@
 # define CHANNEL_HPP
 
 # include "ft_irc.hpp"
+# include "Client.hpp"
 
 class Channel {
 private:

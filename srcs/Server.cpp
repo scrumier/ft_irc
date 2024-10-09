@@ -106,7 +106,7 @@ void Server::handle_new_connection() {
         poll_fds.push_back(client_poll_fd);
 
         std::string name = "Guest" + intToString(client_fd);
-        clients[client_fd] = Client();
+        clients[client_fd] = Client(client_fd);
         clients[client_fd].setNickname(name);
 
         std::cout << "New client connected: " << client_fd << std::endl;

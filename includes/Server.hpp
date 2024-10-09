@@ -2,6 +2,9 @@
 # define IRC_HPP
 
 # include "ft_irc.hpp"
+# include "Client.hpp"
+
+class Channel;
 
 class Server {
 public:

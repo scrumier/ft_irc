@@ -18,16 +18,14 @@
 # include <sstream>
 # include <errno.h>
 
+# define BACKLOG 5
+# define MAX_CLIENTS 10
+
 # include "Client.hpp"
 # include "Server.hpp"
 # include "Channel.hpp"
 
 
-# define BACKLOG 5
-# define MAX_CLIENTS 10
-
-class Client;
-class Server;
 
 std::string intToString(int number);
 bool is_valid_nickname_char(char c);

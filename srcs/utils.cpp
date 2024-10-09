@@ -13,3 +13,7 @@ bool is_valid_nickname_char(char c) {
 bool is_valid_realname_char(char c) {
     return std::isprint(c);
 }
+
+bool Server::is_valid_channel_name(const std::string& channel) {
+    return !channel.empty() && channel[0] == '#' && channel.size() > 1;
+}
