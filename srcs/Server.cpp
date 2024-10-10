@@ -172,28 +172,13 @@ void Server::handle_client_data(size_t i) {
         process_command(poll_fds[i].fd, command, args);
     }
 }
-
+#include <stdio.h>
 void Server::close_client(size_t i) {
     int client_fd = poll_fds[i].fd;
-    std::string client_nickname = clients[client_fd].getNickname();
 
-    // Remove client from all channels
-    for (std::map<std::string, Channel>::iterator it = channels.begin(); it != channels.end(); ++it) {
-        Channel& channel = it->second;
-        std::map<std::string, Client*>& clients_in_channel = channel.getClients();
-
-        if (clients_in_channel.find(client_nickname) != clients_in_channel.end()) {
-            clients_in_channel.erase(client_nickname);
-            std::cout << "Removed client " << client_nickname << " from channel " << it->first << std::endl;
-        }
-    }
-
-    // Remove client from poll_fds and clients map
-    std::cout << "Client " << client_fd << " disconnected" << std::endl;
     close(client_fd);
-    poll_fds.erase(poll_fds.begin() + i);
-    clients.erase(client_fd);
 }
+
 
 bool Server::is_valid_channel_name(const std::string& name) {
     return !name.empty() && name[0] == '#';

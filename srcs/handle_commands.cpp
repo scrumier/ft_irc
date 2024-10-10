@@ -170,7 +170,6 @@ void Server::handle_pass(int client_fd, const std::string& args) {
     } else {
         std::string error_msg = "Invalid password.\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
-        close_client(client_fd);
     }
 }
 
@@ -193,7 +192,7 @@ void Server::handle_quit(int client_fd, const std::string& args) {
     }
 
     std::cout << "Client " << client_fd << " quit with message: " << args << std::endl;
-    close_client(client_fd); // Close connection for this client
+    close_client(client_fd);
 }
 
 void Server::initialize_command_map() {
