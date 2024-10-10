@@ -33,7 +33,7 @@ private:
     void handle_nick(int client_fd, const std::string& args);
     void handle_user(int client_fd, const std::string& args);
     void handle_join(int client_fd, const std::string& args);
-    void handle_msg(int client_fd, const std::string& args);
+    void handle_privmsg(int client_fd, const std::string& args);
     void handle_pass(int client_fd, const std::string& args);
     void handle_quit(int client_fd, const std::string& args);
 
@@ -44,6 +44,8 @@ private:
     void handle_cap(int client_fd, const std::string& args);
     void handle_ping(int client_fd, const std::string& args);
     void handle_pong(int client_fd, const std::string& args);
+
+    bool taken_nickname(const std::string& nickname);
 
 public:
     Server(int port, const std::string& password);

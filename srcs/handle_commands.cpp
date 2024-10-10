@@ -1,7 +1,18 @@
 #include "ft_irc.hpp"
 
+bool Server::taken_nickname(const std::string& nickname) {
+    for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); ++it) {
+        if (it->second.getNickname() == nickname) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void Server::handle_nick(int client_fd, const std::string& args) {
     std::string nickname = my_trim(args);
+
+    // check if the nickname is already taken
 
     if (nickname.empty()) {
         std::string current_nick = clients[client_fd].getNickname();
@@ -12,13 +23,16 @@ void Server::handle_nick(int client_fd, const std::string& args) {
         std::string error_msg = "Nickname too long. Max 9 characters.\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
+    } else if (!taken_nickname(nickname)) {
+        std::string error_msg = "Nickname already taken.\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
     }
 
     clients[client_fd].setNickname(nickname);
     clients[client_fd].setHasNick(true);
     std::cout << "Client " << client_fd << " set nickname to " << nickname << std::endl;
 
-    // Attempt to complete registration
     complete_registration(client_fd);
 }
 
@@ -94,7 +108,7 @@ void Server::handle_join(int client_fd, const std::string& args) {
     }
 }
 
-void Server::handle_msg(int client_fd, const std::string& args) {
+void Server::handle_privmsg(int client_fd, const std::string& args) {
     std::istringstream iss(args);
     std::string target, message;
     
@@ -105,7 +119,7 @@ void Server::handle_msg(int client_fd, const std::string& args) {
     message = my_trim(message);
     
     if (target.empty() || message.empty() || message[0] != ':') {
-        std::string error_msg = "Invalid message format. Use MSG <target> :<message>\r\n";
+        std::string error_msg = "Invalid message format. Use /PRIVMSG <target> :<message>\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
     }
@@ -121,7 +135,7 @@ void Server::handle_msg(int client_fd, const std::string& args) {
         
         for (std::map<std::string, Client*>::iterator it = clients_in_channel.begin(); it != clients_in_channel.end(); ++it) {
             if (it->first != sender_nickname) {
-                int target_fd = it->second->getFd(); // Access via pointer
+                int target_fd = it->second->getFd();
                 if (target_fd < 0) {
                     std::cerr << "Error: Invalid file descriptor for client " << it->first << std::endl;
                     continue;
@@ -219,7 +233,7 @@ void Server::initialize_command_map() {
     command_map["NICK"] = &Server::handle_nick;
     command_map["USER"] = &Server::handle_user;
     command_map["JOIN"] = &Server::handle_join;
-    command_map["MSG"] = &Server::handle_msg;
+    command_map["PRIVMSG"] = &Server::handle_privmsg;
     command_map["PASS"] = &Server::handle_pass;
     command_map["QUIT"] = &Server::handle_quit;
     command_map["CAP"] = &Server::handle_cap;
