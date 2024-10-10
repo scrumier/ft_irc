@@ -172,7 +172,7 @@ void Server::handle_client_data(size_t i) {
         process_command(poll_fds[i].fd, command, args);
     }
 }
-#include <stdio.h>
+
 void Server::close_client(size_t i) {
     int client_fd = poll_fds[i].fd;
 
