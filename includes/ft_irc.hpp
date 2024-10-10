@@ -18,7 +18,6 @@
 # include <algorithm>
 # include <cctype>
 # include <sstream>
-# include <errno.h>
 # include <ctime>
 // include for RPL_msg
 # define RPL_WELCOME 001

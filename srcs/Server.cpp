@@ -139,14 +139,18 @@ void Server::parse_command(const std::string& input, std::string& command, std::
     if (trimmed_input[0] == '/') {
         trimmed_input = trimmed_input.substr(1);
     }
+    std::cout << "Trimmed input: |" << trimmed_input << "|" << std::endl;
 
     if (space_pos != std::string::npos) {
-        command = trimmed_input.substr(0, space_pos);
-        args = trimmed_input.substr(space_pos + 1);
+        command = trimmed_input.substr(0, space_pos - 1);
+        args = trimmed_input.substr(space_pos);
     } else {
         command = trimmed_input;
         args = "";
     }
+
+    std::cout << "Command: |" << command << "|" << std::endl;
+    std::cout << "Args: |" << args << "|" << std::endl;
 
     command = my_trim(command);
     if (!args.empty()) {
@@ -166,6 +170,9 @@ void Server::process_command(int client_fd, const std::string& command, const st
                 (this->*handler)(client_fd, args);
             } else {
                 std::string error_msg = "You have not registered. Please complete registration.\r\n";
+                error_msg += "Usage: /PASS <password>\r\n";
+                error_msg += "Usage: /NICK <nickname>\r\n";
+                error_msg += "Usage: /USER <username> <hostname> <servername> <realname>\r\n";
                 send(client_fd, error_msg.c_str(), error_msg.size(), 0);
             }
         } else {
