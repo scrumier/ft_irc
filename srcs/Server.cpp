@@ -1,11 +1,5 @@
-#include "Server.hpp"
+#include "ft_irc.hpp"
 
-Server::Server() {}
-
-/*
-* @brief Initialize the class members
-* @return void
-*/
 Server::Server(int port, const std::string& password) : password(password) {
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {
@@ -18,6 +12,7 @@ Server::Server(int port, const std::string& password) : password(password) {
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(port);
     server_addr.sin_addr.s_addr = INADDR_ANY;
+    memset(&(server_addr.sin_zero), '\0', 8);
 
     if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
         close(server_fd);
@@ -41,19 +36,6 @@ Server::~Server() {
     close(server_fd);
 }
 
-const Server& Server::operator=(const Server& other) {
-    if (this != &other) {
-        server_fd = other.server_fd;
-        poll_fds = other.poll_fds;
-        command_map = other.command_map;
-    }
-    return *this;
-}
-
-/*
-* @brief The main server loop
-* @return void
-*/
 void Server::run() {
     std::cout << "Server is running..." << std::endl;
 
@@ -79,10 +61,6 @@ void Server::run() {
     }
 }
 
-/*
-* @brief Handle a new connection (Accept or refuse)
-* @return void
-*/
 void Server::handle_new_connection() {
     if (poll_fds.size() - 1 >= MAX_CLIENTS) {
         std::cerr << "Max clients reached. Refusing connection." << std::endl;
@@ -96,10 +74,14 @@ void Server::handle_new_connection() {
     }
 
     int client_fd = accept(server_fd, NULL, NULL);
-    if (client_fd == -1) {
+    if (client_fd < 0) {
         std::cerr << "Accept failed" << std::endl;
     } else {
-        fcntl(client_fd, F_SETFL, O_NONBLOCK);
+        if (fcntl(client_fd, F_SETFL, O_NONBLOCK) < 0) {
+            std::cerr << "Failed to set client socket to non-blocking" << std::endl;
+            close(client_fd);
+            return;
+        }
         struct pollfd client_poll_fd;
         client_poll_fd.fd = client_fd;
         client_poll_fd.events = POLLIN;
@@ -111,14 +93,12 @@ void Server::handle_new_connection() {
 
         std::cout << "New client connected: " << client_fd << std::endl;
         std::string welcome_msg = "Welcome to the server, " + name + "\r\n";
+        if (send(client_fd, welcome_msg.c_str(), welcome_msg.size(), 0) == -1) {
+            std::cerr << "Failed to send welcome message to client " << client_fd << std::endl;
+        }
     }
 }
 
-/*
-* @brief Trim the " " and "\r\n" characters from the string
-* @param str The string to trim
-* @return The trimmed string
-*/
 std::string Server::my_trim(const std::string& str) {
     size_t first = str.find_first_not_of(" \r\n");
     if (first == std::string::npos) {
@@ -128,27 +108,10 @@ std::string Server::my_trim(const std::string& str) {
     return str.substr(first, last - first + 1);
 }
 
-
-/*
-* @brief check if the command is in the command map
-* @param command The command to check
-*/
-bool Server::is_command(std::string command)
-{
-    for (std::map<std::string, CommandHandler>::iterator it = command_map.begin();
-                    it != command_map.end(); ++it) {
-        if (it->first == command) {
-            return true;
-        }
-    }
-    return false;
+bool Server::is_command(const std::string& command) {
+    return command_map.find(command) != command_map.end();
 }
 
-/*
-* @brief Receive data from the client
-* @param client_fd The client file descriptor
-* @return The received data
-*/
 std::string Server::receive_data(int client_fd) {
     char buffer[1024];
     int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
@@ -161,13 +124,6 @@ std::string Server::receive_data(int client_fd) {
     return std::string(buffer);
 }
 
-/*
-* @brief Take the input string and split it into command and arguments
-* @param input The input string
-* @param command The command to process
-* @param args The arguments of the command
-* @return void
-*/
 void Server::parse_command(const std::string& input, std::string& command, std::string& args) {
     std::string trimmed_input = my_trim(input);
     size_t space_pos = trimmed_input.find(' ');
@@ -189,27 +145,14 @@ void Server::parse_command(const std::string& input, std::string& command, std::
         args = my_trim(args);
     }
 
-    for (size_t j = 0; j < command.size(); ++j) {
-        command[j] = std::toupper(command[j]);
-    }
+    std::transform(command.begin(), command.end(), command.begin(), ::toupper);
 }
 
-
-/*
-* @brief Execute the command if the command is valid
-* @param client_fd The client file descriptor
-* @param command The command to process
-* @param args The arguments of the command
-* @return void
-*/
 void Server::process_command(int client_fd, const std::string& command, const std::string& args) {
-    //std::cout << "Received command: |" << command << "|" << std::endl;
-    //std::cout << "Received args: |" << args << "|" << std::endl;
-
     if (is_command(command)) {
         std::cout << "Executing command handler for: " << command << std::endl;
-        std::map<std::string, CommandHandler>::iterator it = command_map.find(command);
-        (this->*(it->second))(client_fd, args);
+        CommandHandler handler = command_map[command];
+        (this->*handler)(client_fd, args);
     } else {
         if (!command.empty()) {
             std::string error_msg = "Command not recognized\r\n";
@@ -218,23 +161,6 @@ void Server::process_command(int client_fd, const std::string& command, const st
     }
 }
 
-/*
-* @brief Check if there is a "\r\n" at the end of the buffer
-* @param buffer The buffer to check
-* @return true if there is no "\r\n" in the buffer, false otherwise
-*/
-bool notRNInBuffer(std::string buffer) {
-    if (buffer.find("\r\n") == std::string::npos) {
-        return true;
-    }
-    return false;
-}
-
-/*
-* @brief Handle the client data
-* @param i The index of the client
-* @return void
-*/
 void Server::handle_client_data(size_t i) {
     std::string input = receive_data(poll_fds[i].fd);
 
@@ -247,14 +173,28 @@ void Server::handle_client_data(size_t i) {
     }
 }
 
-/*
-* @brief Close the client connection
-* @param i The index of the client
-* @return void
-*/
 void Server::close_client(size_t i) {
-    std::cout << "Client " << poll_fds[i].fd << " disconnected" << std::endl;
-    close(poll_fds[i].fd);
+    int client_fd = poll_fds[i].fd;
+    std::string client_nickname = clients[client_fd].getNickname();
+
+    // Remove client from all channels
+    for (std::map<std::string, Channel>::iterator it = channels.begin(); it != channels.end(); ++it) {
+        Channel& channel = it->second;
+        std::map<std::string, Client*>& clients_in_channel = channel.getClients();
+
+        if (clients_in_channel.find(client_nickname) != clients_in_channel.end()) {
+            clients_in_channel.erase(client_nickname);
+            std::cout << "Removed client " << client_nickname << " from channel " << it->first << std::endl;
+        }
+    }
+
+    // Remove client from poll_fds and clients map
+    std::cout << "Client " << client_fd << " disconnected" << std::endl;
+    close(client_fd);
     poll_fds.erase(poll_fds.begin() + i);
-    clients.erase(poll_fds[i].fd);
+    clients.erase(client_fd);
+}
+
+bool Server::is_valid_channel_name(const std::string& name) {
+    return !name.empty() && name[0] == '#';
 }
