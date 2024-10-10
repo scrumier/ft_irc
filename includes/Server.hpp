@@ -10,6 +10,12 @@ private:
     std::vector<struct pollfd> poll_fds;
     std::map<int, Client> clients;
     std::map<std::string, Channel> channels;
+    std::string server_name;
+    std::string server_version;
+    std::string server_creation_date;
+    bool requires_password;
+
+    void complete_registration(int client_fd);
 
     typedef void (Server::*CommandHandler)(int client_fd, const std::string& args);
     std::map<std::string, CommandHandler> command_map;
@@ -34,6 +40,10 @@ private:
     bool is_command(const std::string& command);
     std::string my_trim(const std::string& str);
     bool is_valid_channel_name(const std::string& name);
+
+    void handle_cap(int client_fd, const std::string& args);
+    void handle_ping(int client_fd, const std::string& args);
+    void handle_pong(int client_fd, const std::string& args);
 
 public:
     Server(int port, const std::string& password);

@@ -97,3 +97,27 @@ int Client::getFd() const {
 void Client::setFd(int fd) {
     this->fd = fd;
 }
+
+bool Client::isRegistered() const {
+    return registered;
+}
+
+void Client::setRegistered(bool registered) {
+    this->registered = registered;
+}
+
+bool Client::hasNick() const {
+    return has_nick;
+}
+
+void Client::setHasNick(bool has_nick) {
+    this->has_nick = has_nick;
+}
+
+bool Client::hasUser() const {
+    return has_user;
+}
+
+void Client::setHasUser(bool has_user) {
+    this->has_user = has_user;
+}

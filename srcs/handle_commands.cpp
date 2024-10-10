@@ -2,26 +2,29 @@
 
 void Server::handle_nick(int client_fd, const std::string& args) {
     std::string nickname = my_trim(args);
-    
+
     if (nickname.empty()) {
         std::string current_nick = clients[client_fd].getNickname();
         std::string msg = "Your nickname is: " + current_nick + "\r\n";
         send(client_fd, msg.c_str(), msg.size(), 0);
         return;
-    } 
-    else if (nickname.size() > 9) {
+    } else if (nickname.size() > 9) {
         std::string error_msg = "Nickname too long. Max 9 characters.\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
     }
-    
+
     clients[client_fd].setNickname(nickname);
+    clients[client_fd].setHasNick(true);
     std::cout << "Client " << client_fd << " set nickname to " << nickname << std::endl;
+
+    // Attempt to complete registration
+    complete_registration(client_fd);
 }
 
+// Server.cpp
+
 void Server::handle_user(int client_fd, const std::string& args) {
-    std::cout << "Raw args received: |" << args << "|" << std::endl;
-    
     if (!args.empty()) {
         size_t first_space = args.find(' ');
         size_t second_space = args.find(' ', first_space + 1);
@@ -34,25 +37,19 @@ void Server::handle_user(int client_fd, const std::string& args) {
             send(client_fd, error_msg.c_str(), error_msg.size(), 0);
             return;
         }
-
         std::string username = my_trim(args.substr(0, first_space));
-
         std::string realname = my_trim(args.substr(colon + 1)); // Everything after the colon
-
-        std::cout << "Parsed username: |" << username << "|" << std::endl;
-        std::cout << "Parsed realname: |" << realname << "|" << std::endl;
-
         if (username.empty() || realname.empty()) {
             std::string error_msg = "Invalid USER command format. Empty username or realname.\r\n";
             send(client_fd, error_msg.c_str(), error_msg.size(), 0);
             return;
         }
-
         clients[client_fd].setUsername(username);
         clients[client_fd].setRealname(realname);
-
-        std::cout << "Client " << client_fd << " set username to " << username 
+        clients[client_fd].setHasUser(true);
+        std::cout << "Client " << client_fd << " set username to " << username
                   << " and real name to " << realname << std::endl;
+        complete_registration(client_fd);
     } else {
         std::string username = clients[client_fd].getUsername();
         std::string realname = clients[client_fd].getRealname();
@@ -61,6 +58,7 @@ void Server::handle_user(int client_fd, const std::string& args) {
         send(client_fd, msg.c_str(), msg.size(), 0);
     }
 }
+
 
 void Server::handle_join(int client_fd, const std::string& args) {
     std::string channel_name = my_trim(args);
@@ -155,8 +153,12 @@ void Server::handle_msg(int client_fd, const std::string& args) {
 }
 
 void Server::handle_pass(int client_fd, const std::string& args) {
+    if (clients[client_fd].hasNick() || clients[client_fd].hasUser()) {
+        std::string error_msg = "PASS command must be sent before NICK/USER\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
     std::string pass = my_trim(args);
-    
     if (clients[client_fd].isAuthenticated()) {
         std::string error_msg = "Already authenticated.\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
@@ -170,8 +172,10 @@ void Server::handle_pass(int client_fd, const std::string& args) {
     } else {
         std::string error_msg = "Invalid password.\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        close_client(client_fd);
     }
 }
+
 
 void Server::handle_quit(int client_fd, const std::string& args) {
     std::string quit_msg = clients[client_fd].getNickname() + " has quit";
@@ -195,6 +199,22 @@ void Server::handle_quit(int client_fd, const std::string& args) {
     close_client(client_fd);
 }
 
+void Server::handle_cap(int client_fd, const std::string& args) {
+    (void)args;
+    std::string response = "CAP * NAK :No supported capabilities\r\n";
+    send(client_fd, response.c_str(), response.size(), 0);
+}
+
+void Server::handle_ping(int client_fd, const std::string& args) {
+    std::string response = "PONG :" + args + "\r\n";
+    send(client_fd, response.c_str(), response.size(), 0);
+}
+
+void Server::handle_pong(int client_fd, const std::string& args) {
+    (void)client_fd;
+    (void)args;
+}
+
 void Server::initialize_command_map() {
     command_map["NICK"] = &Server::handle_nick;
     command_map["USER"] = &Server::handle_user;
@@ -202,4 +222,7 @@ void Server::initialize_command_map() {
     command_map["MSG"] = &Server::handle_msg;
     command_map["PASS"] = &Server::handle_pass;
     command_map["QUIT"] = &Server::handle_quit;
+    command_map["CAP"] = &Server::handle_cap;
+    command_map["PING"] = &Server::handle_ping;
+    command_map["PONG"] = &Server::handle_pong;
 }

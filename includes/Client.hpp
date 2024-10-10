@@ -12,6 +12,9 @@ private:
     bool admin;
     std::string buffer;
     int fd;
+    bool registered;
+    bool has_nick;
+    bool has_user;
 
 public:
     Client();
@@ -41,6 +44,15 @@ public:
 
     int getFd() const;
     void setFd(int fd);
+
+    bool isRegistered() const;
+    void setRegistered(bool registered);
+
+    bool hasNick() const;
+    void setHasNick(bool has_nick);
+
+    bool hasUser() const;
+    void setHasUser(bool has_user);
 };
 
-#endif // CLIENT_HPP
+#endif

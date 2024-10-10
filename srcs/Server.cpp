@@ -29,6 +29,14 @@ Server::Server(int port, const std::string& password) : password(password) {
     server_poll_fd.events = POLLIN;
     poll_fds.push_back(server_poll_fd);
 
+    server_name = "localhost:6667";
+    server_version = "1.0";
+    time_t now = time(0);
+    char time[64];
+    strftime(time, sizeof(time), "%a %b %d %H:%M:%S %Y", gmtime(&now));
+    server_creation_date = time;
+    requires_password = !password.empty();
+
     initialize_command_map();
 }
 
@@ -148,16 +156,60 @@ void Server::parse_command(const std::string& input, std::string& command, std::
     std::transform(command.begin(), command.end(), command.begin(), ::toupper);
 }
 
+
 void Server::process_command(int client_fd, const std::string& command, const std::string& args) {
     if (is_command(command)) {
-        std::cout << "Executing command handler for: " << command << std::endl;
-        CommandHandler handler = command_map[command];
-        (this->*handler)(client_fd, args);
+        if (!clients[client_fd].isRegistered()) {
+            if (command == "PASS" || command == "NICK" || command == "USER" || command == "CAP" || command == "PING" || command == "PONG" || command == "QUIT") {
+                std::cout << "Executing command handler for: " << command << std::endl;
+                CommandHandler handler = command_map[command];
+                (this->*handler)(client_fd, args);
+            } else {
+                std::string error_msg = "You have not registered. Please complete registration.\r\n";
+                send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+            }
+        } else {
+            std::cout << "Executing command handler for: " << command << std::endl;
+            CommandHandler handler = command_map[command];
+            (this->*handler)(client_fd, args);
+        }
     } else {
         if (!command.empty()) {
             std::string error_msg = "Command not recognized\r\n";
             send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         }
+    }
+}
+
+void Server::complete_registration(int client_fd) {
+    Client& client = clients[client_fd];
+
+    if (!client.isRegistered() && client.hasNick() && client.hasUser()) {
+        if (requires_password && !client.isAuthenticated()) {
+            std::string error_msg = "Password required\r\n";
+            send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+            close_client(client_fd);
+            return;
+        }
+        client.setRegistered(true);
+        std::string nickname = client.getNickname();
+
+        std::string welcome_msg = ":" + server_name + " 001 " + nickname + " :Welcome to the IRC network, " + nickname + "\r\n";
+        send(client_fd, welcome_msg.c_str(), welcome_msg.size(), RPL_WELCOME);
+
+        std::string yourhost_msg = ":" + server_name + " 002 " + nickname + " :Your host is " + server_name + ", running version " + server_version + "\r\n";
+        send(client_fd, yourhost_msg.c_str(), yourhost_msg.size(), RPL_YOURHOST);
+
+        std::string created_msg = ":" + server_name + " 003 " + nickname + " :This server was created " + server_creation_date + "\r\n";
+        send(client_fd, created_msg.c_str(), created_msg.size(), RPL_CREATED);
+
+        std::string myinfo_msg = ":" + server_name + " 004 " + nickname + " " + server_name + " " + server_version + " o o\r\n";
+        send(client_fd, myinfo_msg.c_str(), myinfo_msg.size(), RPL_MYINFO);
+
+        std::string isupport_msg = ":" + server_name + " 005 " + nickname + " :are supported by this server\r\n";
+        send(client_fd, isupport_msg.c_str(), isupport_msg.size(), RPL_ISUPPORT);
+
+        std::cout << "Client " << client_fd << " registered as " << nickname << std::endl;
     }
 }
 
