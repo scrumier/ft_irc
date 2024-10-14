@@ -134,15 +134,18 @@ std::string Server::receive_data(int client_fd) {
 
 void Server::parse_command(const std::string& input, std::string& command, std::string& args) {
     std::string trimmed_input = my_trim(input);
-    size_t space_pos = trimmed_input.find(' ');
+    size_t space_pos = input.find(' ');
 
+    // if there is a "/" at the beginning, remove it
     if (trimmed_input[0] == '/') {
         trimmed_input = trimmed_input.substr(1);
     }
-    std::cout << "Trimmed input: |" << trimmed_input << "|" << std::endl;
+
+    std::cout << "Trimmed_input: |" << trimmed_input << "|" << std::endl;
+    
 
     if (space_pos != std::string::npos) {
-        command = trimmed_input.substr(0, space_pos - 1);
+        command = trimmed_input.substr(0, space_pos);
         args = trimmed_input.substr(space_pos);
     } else {
         command = trimmed_input;

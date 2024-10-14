@@ -209,7 +209,7 @@ void Server::handle_quit(int client_fd, const std::string& args) {
         }
     }
 
-    std::cout << "Client " << client_fd << " quit with message: " << args << std::endl;
+    std::cout << "Client " << client_fd << " quit with message: " << quit_msg << std::endl;
     close_client(client_fd);
 }
 
