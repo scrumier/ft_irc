@@ -180,7 +180,7 @@ void Server::parse_command(const std::string& input, std::string& command, std::
 
     if (space_pos != std::string::npos) {
         command = trimmed_input.substr(0, space_pos);
-        args = trimmed_input.substr(space_pos + 1);
+        args = trimmed_input.substr(space_pos);
     } else {
         command = trimmed_input;
         args = "";

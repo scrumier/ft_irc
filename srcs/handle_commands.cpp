@@ -161,7 +161,8 @@ void Server::handle_privmsg(int client_fd, const std::string& args) {
         }
         for (std::map<std::string, Client*>::iterator it = clients_in_channel.begin(); it != clients_in_channel.end(); ++it) {
             std::string msg = ":" + sender_nickname + " PRIVMSG " + target + " :" + message + "\r\n";
-            send(it->second->getFd(), msg.c_str(), msg.size(), 0);
+            if (it->first != sender_nickname)
+                send(it->second->getFd(), msg.c_str(), msg.size(), 0);
         }
     } else {
         bool target_found = false;
@@ -171,14 +172,13 @@ void Server::handle_privmsg(int client_fd, const std::string& args) {
                 break;
             }
         }
-        if (!target_found) {
-            std::string error_msg = ":" + server_name + " 401 " + sender_nickname + " " + target + " :No such nick/channel\r\n";
+        if (target == sender_nickname) {
+            std::string error_msg = ":" + server_name + " 401 " + sender_nickname + " :You cannot send a message to yourself\r\n";
             send(client_fd, error_msg.c_str(), error_msg.size(), 0);
             return;
         }
-
-        if (target == sender_nickname) {
-            std::string error_msg = ":" + server_name + " 401 " + sender_nickname + " :You cannot send a message to yourself\r\n";
+        if (!target_found) {
+            std::string error_msg = ":" + server_name + " 401 " + sender_nickname + " " + target + " :No such nick/channel\r\n";
             send(client_fd, error_msg.c_str(), error_msg.size(), 0);
             return;
         }
@@ -186,7 +186,6 @@ void Server::handle_privmsg(int client_fd, const std::string& args) {
         for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); ++it) {
             if (it->second.getNickname() == target) {
                 std::string msg = ":" + sender_nickname + " PRIVMSG " + target + " :" + message + "\r\n";
-
                 send(it->first, msg.c_str(), msg.size(), 0);
                 std::cout << "Client " << clients[client_fd].getNickname() << " sent message to " << target << ": " << message << std::endl;
                 return;
