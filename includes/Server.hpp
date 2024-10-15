@@ -45,7 +45,7 @@ private:
     void handle_ping(int client_fd, const std::string& args);
     void handle_pong(int client_fd, const std::string& args);
 
-    bool taken_nickname(const std::string& nickname);
+    bool already_taken_nickname(const std::string& nickname);
 
 public:
     Server(int port, const std::string& password);

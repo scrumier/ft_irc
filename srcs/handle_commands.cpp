@@ -1,6 +1,6 @@
 #include "ft_irc.hpp"
 
-bool Server::taken_nickname(const std::string& nickname) {
+bool Server::already_taken_nickname(const std::string& nickname) {
     for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); ++it) {
         if (it->second.getNickname() == nickname) {
             return true;
@@ -23,7 +23,7 @@ void Server::handle_nick(int client_fd, const std::string& args) {
         std::string error_msg = "Nickname too long. Max 9 characters.\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
-    } else if (!taken_nickname(nickname)) {
+    } else if (already_taken_nickname(nickname)) {
         std::string error_msg = "Nickname already taken.\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
@@ -107,14 +107,14 @@ void Server::handle_join(int client_fd, const std::string& args) {
 }
 
 void Server::handle_privmsg(int client_fd, const std::string& args) {
-    std::istringstream iss(args);
-    std::string target, message;
-    
-    iss >> target;
-    std::getline(iss, message);
-    
-    target = my_trim(target);
-    message = my_trim(message);
+    std::string target;
+    std::string message;
+
+    size_t colon = args.find(':');
+    if (colon != std::string::npos) {
+        target = my_trim(args.substr(0, colon));
+        message = my_trim(args.substr(colon));
+    }
     
     if (target.empty() || message.empty() || message[0] != ':') {
         std::string error_msg = "Invalid message format. Use /PRIVMSG <target> :<message>\r\n";
@@ -126,40 +126,51 @@ void Server::handle_privmsg(int client_fd, const std::string& args) {
 
     std::string sender_nickname = clients[client_fd].getNickname();
     
-    if (channels.find(target) != channels.end()) {
-        std::string msg = sender_nickname + ": " + message + "\r\n";
+    // Check if the target is a channel and if the client is in that channel
+    if (target[0] == '#') {
+        if (channels.find(target) == channels.end()) {
+            std::string error_msg = "Channel " + target + " does not exist.\r\n";
+            send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+            return;
+        }
         Channel& channel = channels[target];
         std::map<std::string, Client*>& clients_in_channel = channel.getClients();
-
-        for (std::map<std::string, Client*>::iterator it = clients_in_channel.begin(); it != clients_in_channel.end(); ++it) {
-            if (it->first != sender_nickname) {
-                int target_fd = it->second->getFd();
-                if (target_fd < 0) {
-                    std::cerr << "Error: Invalid file descriptor for client " << it->first << std::endl;
-                    continue;
-                }
-                if (send(target_fd, msg.c_str(), msg.size(), 0) == -1) {
-                    std::cerr << "Error sending message to " << it->first << std::endl;
-                }
-            }
+        if (clients_in_channel.find(sender_nickname) == clients_in_channel.end()) {
+            std::string error_msg = "You are not in channel " + target + ".\r\n";
+            send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+            return;
         }
-        std::cout << "Client " << sender_nickname << " sent message to channel " << target << std::endl;
-    }
-    else {
-        bool user_found = false;
+        for (std::map<std::string, Client*>::iterator it = clients_in_channel.begin(); it != clients_in_channel.end(); ++it) {
+            std::string msg = sender_nickname + " PRIVMSG " + target + " :" + message + "\r\n";
+            send(it->second->getFd(), msg.c_str(), msg.size(), 0);
+        }
+    } else {
+        bool target_found = false;
         for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); ++it) {
             if (it->second.getNickname() == target) {
-                std::string msg = sender_nickname + ": " + message + "\r\n";
-                send(it->first, msg.c_str(), msg.size(), 0);
-                user_found = true;
-                std::cout << "Client " << sender_nickname << " sent private message to " << target << std::endl;
+                target_found = true;
                 break;
             }
         }
-        
-        if (!user_found) {
-            std::string error_msg = "User or channel not found.\r\n";
+        if (!target_found) {
+            std::string error_msg = "Client " + target + " not found.\r\n";
             send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+            return;
+        }
+
+        if (target == sender_nickname) {
+            std::string error_msg = "You cannot send a message to yourself.\r\n";
+            send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+            return;
+        }
+
+        for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); ++it) {
+            if (it->second.getNickname() == target) {
+                std::string msg = sender_nickname + " PRIVMSG " + target + " :" + message + "\r\n";
+                send(it->first, msg.c_str(), msg.size(), 0);
+                std::cout << "Client " << client_fd << " sent message to " << target << ": " << message << std::endl;
+                return;
+            }
         }
     }
 }
