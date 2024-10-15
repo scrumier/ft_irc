@@ -36,8 +36,6 @@ void Server::handle_nick(int client_fd, const std::string& args) {
     complete_registration(client_fd);
 }
 
-// Server.cpp
-
 void Server::handle_user(int client_fd, const std::string& args) {
     if (!args.empty()) {
         size_t first_space = args.find(' ');
@@ -94,11 +92,11 @@ void Server::handle_join(int client_fd, const std::string& args) {
     }
 
     Channel& channel = channels[channel_name];
-    std::map<std::string, Client*>& clients_in_channel = channel.getClients(); // Use Client* here
+    std::map<std::string, Client*>& clients_in_channel = channel.getClients();
     std::string client_nickname = clients[client_fd].getNickname();
 
     if (clients_in_channel.find(client_nickname) == clients_in_channel.end()) {
-        clients_in_channel[client_nickname] = &clients[client_fd]; // Store pointer to Client
+        clients_in_channel[client_nickname] = &clients[client_fd];
         std::string join_msg = "You have joined channel " + channel_name + ".\r\n";
         send(client_fd, join_msg.c_str(), join_msg.size(), 0);
         std::cout << "Client " << client_fd << " joined channel " << channel_name << std::endl;
@@ -125,14 +123,14 @@ void Server::handle_privmsg(int client_fd, const std::string& args) {
     }
 
     message = message.substr(1);
-    
+
     std::string sender_nickname = clients[client_fd].getNickname();
     
     if (channels.find(target) != channels.end()) {
         std::string msg = sender_nickname + ": " + message + "\r\n";
         Channel& channel = channels[target];
-        std::map<std::string, Client*>& clients_in_channel = channel.getClients(); // Use Client* here
-        
+        std::map<std::string, Client*>& clients_in_channel = channel.getClients();
+
         for (std::map<std::string, Client*>::iterator it = clients_in_channel.begin(); it != clients_in_channel.end(); ++it) {
             if (it->first != sender_nickname) {
                 int target_fd = it->second->getFd();
@@ -190,7 +188,6 @@ void Server::handle_pass(int client_fd, const std::string& args) {
     }
 }
 
-
 void Server::handle_quit(int client_fd, const std::string& args) {
     std::string quit_msg = clients[client_fd].getNickname() + " has quit";
     
@@ -201,7 +198,7 @@ void Server::handle_quit(int client_fd, const std::string& args) {
     
     for (std::map<std::string, Channel>::iterator it = channels.begin(); it != channels.end(); ++it) {
         Channel& channel = it->second;
-        std::map<std::string, Client*>& clients_in_channel = channel.getClients(); // Use Client* here
+        std::map<std::string, Client*>& clients_in_channel = channel.getClients();
         
         std::map<std::string, Client*>::iterator client_it = clients_in_channel.find(clients[client_fd].getNickname());
         if (client_it != clients_in_channel.end()) {

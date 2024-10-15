@@ -7,7 +7,8 @@ private:
     std::string name;
     std::string topic;
     std::string password;
-    std::map<std::string, Client*> clients; // Store pointers to Client objects
+    std::map<std::string, Client*> clients;
+    std::map<std::string, Client*> invited_clients;
     std::vector<std::string> operators;
 
 public:
@@ -41,4 +42,4 @@ public:
     bool isClient(const std::string& nickname) const;
 };
 
-#endif // CHANNEL_HPP
+#endif
