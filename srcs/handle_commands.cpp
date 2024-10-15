@@ -24,11 +24,11 @@ void Server::handle_nick(int client_fd, const std::string& args) {
         send(client_fd, msg.c_str(), msg.size(), 0);
         return;
     } else if (nickname.size() > 9) {
-        std::string error_msg = "Nickname too long. Max 9 characters.\r\n";
+        std::string error_msg = ":" + server_name + " 432 * " + nickname + " :Erroneous nickname (too long, max 9 characters)\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
     } else if (already_taken_nickname(nickname)) {
-        std::string error_msg = "Nickname already taken.\r\n";
+        std::string error_msg = ":" + server_name + " 433 * " + nickname + " :Nickname is already in use\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
     }
@@ -55,22 +55,21 @@ void Server::handle_user(int client_fd, const std::string& args) {
 
         if (first_space == std::string::npos || second_space == std::string::npos ||
             third_space == std::string::npos || colon == std::string::npos) {
-            std::string error_msg = "Invalid USER command format. Missing fields or colon.\r\n";
+            std::string error_msg = ":" + server_name + " 461 USER :Not enough parameters\r\n";
             send(client_fd, error_msg.c_str(), error_msg.size(), 0);
             return;
         }
         std::string username = my_trim(args.substr(0, first_space));
         std::string realname = my_trim(args.substr(colon + 1)); // Everything after the colon
         if (username.empty() || realname.empty()) {
-            std::string error_msg = "Invalid USER command format. Empty username or realname.\r\n";
+            std::string error_msg = ":" + server_name + " 461 USER :Not enough parameters\r\n";
             send(client_fd, error_msg.c_str(), error_msg.size(), 0);
             return;
         }
         clients[client_fd].setUsername(username);
         clients[client_fd].setRealname(realname);
         clients[client_fd].setHasUser(true);
-        std::cout << "Client " << client_fd << " set username to " << username
-                  << " and real name to " << realname << std::endl;
+        std::cout << "Client " << client_fd << " set username to " << username << " and real name to " << realname << std::endl;
         complete_registration(client_fd);
     } else {
         std::string username = clients[client_fd].getUsername();
@@ -91,13 +90,13 @@ void Server::handle_join(int client_fd, const std::string& args) {
     std::string channel_name = my_trim(args);
 
     if (channel_name.empty()) {
-        std::string error_msg = "No channel name provided.\r\n";
+        std::string error_msg = ":" + server_name + " 461 JOIN :Not enough parameters\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
     }
 
     if (!is_valid_channel_name(channel_name)) {
-        std::string error_msg = "Invalid channel name. Channels must start with '#'.\r\n";
+        std::string error_msg = ":" + server_name + " 403 " + clients[client_fd].getNickname() + " " + channel_name + " :No such channel\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
     }
@@ -112,9 +111,9 @@ void Server::handle_join(int client_fd, const std::string& args) {
 
     if (clients_in_channel.find(client_nickname) == clients_in_channel.end()) {
         clients_in_channel[client_nickname] = &clients[client_fd];
-        std::string join_msg = "You have joined channel " + channel_name + ".\r\n";
+        std::string join_msg = ":" + client_nickname + " JOIN " + channel_name + "\r\n";
         send(client_fd, join_msg.c_str(), join_msg.size(), 0);
-        std::cout << "Client " << client_fd << " joined channel " << channel_name << std::endl;
+        std::cout << "Client " << clients[client_fd].getNickname() << " joined channel " << channel_name << std::endl;
     } else {
         std::string already_joined_msg = "You are already in channel " + channel_name + ".\r\n";
         send(client_fd, already_joined_msg.c_str(), already_joined_msg.size(), 0);
@@ -138,7 +137,7 @@ void Server::handle_privmsg(int client_fd, const std::string& args) {
     }
     
     if (target.empty() || message.empty() || message[0] != ':') {
-        std::string error_msg = "Invalid message format. Use /PRIVMSG <target> :<message>\r\n";
+        std::string error_msg = ":" + server_name + " 411 " + clients[client_fd].getNickname() + " :No recipient or text to send\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
     }
@@ -147,22 +146,21 @@ void Server::handle_privmsg(int client_fd, const std::string& args) {
 
     std::string sender_nickname = clients[client_fd].getNickname();
     
-    // Check if the target is a channel and if the client is in that channel
     if (target[0] == '#') {
         if (channels.find(target) == channels.end()) {
-            std::string error_msg = "Channel " + target + " does not exist.\r\n";
+            std::string error_msg = ":" + server_name + " 403 " + sender_nickname + " " + target + " :No such channel\r\n";
             send(client_fd, error_msg.c_str(), error_msg.size(), 0);
             return;
         }
         Channel& channel = channels[target];
         std::map<std::string, Client*>& clients_in_channel = channel.getClients();
         if (clients_in_channel.find(sender_nickname) == clients_in_channel.end()) {
-            std::string error_msg = "You are not in channel " + target + ".\r\n";
+            std::string error_msg = ":" + server_name + " 442 " + sender_nickname + " " + target + " :You're not on that channel\r\n";
             send(client_fd, error_msg.c_str(), error_msg.size(), 0);
             return;
         }
         for (std::map<std::string, Client*>::iterator it = clients_in_channel.begin(); it != clients_in_channel.end(); ++it) {
-            std::string msg = sender_nickname + " PRIVMSG " + target + " :" + message + "\r\n";
+            std::string msg = ":" + sender_nickname + " PRIVMSG " + target + " :" + message + "\r\n";
             send(it->second->getFd(), msg.c_str(), msg.size(), 0);
         }
     } else {
@@ -174,22 +172,23 @@ void Server::handle_privmsg(int client_fd, const std::string& args) {
             }
         }
         if (!target_found) {
-            std::string error_msg = "Client " + target + " not found.\r\n";
+            std::string error_msg = ":" + server_name + " 401 " + sender_nickname + " " + target + " :No such nick/channel\r\n";
             send(client_fd, error_msg.c_str(), error_msg.size(), 0);
             return;
         }
 
         if (target == sender_nickname) {
-            std::string error_msg = "You cannot send a message to yourself.\r\n";
+            std::string error_msg = ":" + server_name + " 401 " + sender_nickname + " :You cannot send a message to yourself\r\n";
             send(client_fd, error_msg.c_str(), error_msg.size(), 0);
             return;
         }
 
         for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); ++it) {
             if (it->second.getNickname() == target) {
-                std::string msg = sender_nickname + " PRIVMSG " + target + " :" + message + "\r\n";
+                std::string msg = ":" + sender_nickname + " PRIVMSG " + target + " :" + message + "\r\n";
+
                 send(it->first, msg.c_str(), msg.size(), 0);
-                std::cout << "Client " << client_fd << " sent message to " << target << ": " << message << std::endl;
+                std::cout << "Client " << clients[client_fd].getNickname() << " sent message to " << target << ": " << message << std::endl;
                 return;
             }
         }
@@ -204,13 +203,13 @@ void Server::handle_privmsg(int client_fd, const std::string& args) {
 */
 void Server::handle_pass(int client_fd, const std::string& args) {
     if (clients[client_fd].hasNick() || clients[client_fd].hasUser()) {
-        std::string error_msg = "PASS command must be sent before NICK/USER\r\n";
+        std::string error_msg = ":" + server_name + " 462 " + clients[client_fd].getNickname() + " :You may not reregister\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
     }
     std::string pass = my_trim(args);
     if (clients[client_fd].isAuthenticated()) {
-        std::string error_msg = "Already authenticated.\r\n";
+        std::string error_msg = ":" + server_name + " 462 " + clients[client_fd].getNickname() + " :You may not reregister\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
     }
@@ -220,7 +219,7 @@ void Server::handle_pass(int client_fd, const std::string& args) {
         send(client_fd, msg.c_str(), msg.size(), 0);
         std::cout << "Client " << client_fd << " authenticated." << std::endl;
     } else {
-        std::string error_msg = "Invalid password.\r\n";
+        std::string error_msg = ":" + server_name + " 464 " + clients[client_fd].getNickname() + " :Password incorrect\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         close_client(client_fd);
     }
