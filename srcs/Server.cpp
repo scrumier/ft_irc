@@ -1,5 +1,12 @@
 #include "ft_irc.hpp"
 
+
+/*
+ * @brief Init all the data and start the server
+ * @param port The port to listen on
+ * @param password The password to require for clients to connect
+ * @return void
+*/
 Server::Server(int port, const std::string& password) : password(password) {
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd == -1) {
@@ -44,6 +51,10 @@ Server::~Server() {
     close(server_fd);
 }
 
+/*
+ * @brief Start the server and handle incoming connections
+ * @return void
+*/
 void Server::run() {
     std::cout << "Server is running..." << std::endl;
 
@@ -69,6 +80,10 @@ void Server::run() {
     }
 }
 
+/*
+ * @brief Add a new client to the server (in the map of clients)
+ * @return void
+*/
 void Server::handle_new_connection() {
     if (poll_fds.size() - 1 >= MAX_CLIENTS) {
         std::cerr << "Max clients reached. Refusing connection." << std::endl;
@@ -107,6 +122,11 @@ void Server::handle_new_connection() {
     }
 }
 
+/*
+ * @brief Trim whitespace and newlines from a string
+ * @param str The string to trim
+ * @return The trimmed string
+*/
 std::string Server::my_trim(const std::string& str) {
     size_t first = str.find_first_not_of(" \r\n");
     if (first == std::string::npos) {
@@ -116,10 +136,20 @@ std::string Server::my_trim(const std::string& str) {
     return str.substr(first, last - first + 1);
 }
 
+/*
+ * @brief Check if a command is valid
+ * @param command The command to check
+ * @return True if the command is valid, false otherwise
+*/
 bool Server::is_command(const std::string& command) {
     return command_map.find(command) != command_map.end();
 }
 
+/*
+ * @brief Receive data from a client
+ * @param client_fd The client file descriptor
+ * @return The received data
+*/
 std::string Server::receive_data(int client_fd) {
     char buffer[1024];
     int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
@@ -132,11 +162,17 @@ std::string Server::receive_data(int client_fd) {
     return std::string(buffer);
 }
 
+/*
+ * @brief Parse a command into a command and arguments
+ * @param input The input string
+ * @param command The command
+ * @param args The arguments
+ * @return void
+*/
 void Server::parse_command(const std::string& input, std::string& command, std::string& args) {
     std::string trimmed_input = my_trim(input);
     size_t space_pos = input.find(' ');
 
-    // if there is a "/" at the beginning, remove it
     if (trimmed_input[0] == '/') {
         trimmed_input = trimmed_input.substr(1);
     }
@@ -146,7 +182,7 @@ void Server::parse_command(const std::string& input, std::string& command, std::
 
     if (space_pos != std::string::npos) {
         command = trimmed_input.substr(0, space_pos);
-        args = trimmed_input.substr(space_pos);
+        args = trimmed_input.substr(space_pos + 1);
     } else {
         command = trimmed_input;
         args = "";
@@ -163,7 +199,13 @@ void Server::parse_command(const std::string& input, std::string& command, std::
     std::transform(command.begin(), command.end(), command.begin(), ::toupper);
 }
 
-
+/*
+ * @brief Process a command from a client (Execute what command can the client do)
+ * @param client_fd The client file descriptor
+ * @param command The command
+ * @param args The arguments
+ * @return void
+*/
 void Server::process_command(int client_fd, const std::string& command, const std::string& args) {
     if (is_command(command)) {
         if (!clients[client_fd].isRegistered()) {
@@ -191,6 +233,11 @@ void Server::process_command(int client_fd, const std::string& command, const st
     }
 }
 
+/*
+ * @brief Check if all information is provided and complete the registration
+ * @param client_fd The client file descriptor
+ * @return void
+*/
 void Server::complete_registration(int client_fd) {
     Client& client = clients[client_fd];
 
@@ -223,6 +270,10 @@ void Server::complete_registration(int client_fd) {
     }
 }
 
+/*
+ * @brief handle when a new client connects
+ * @param client_fd The client file descriptor
+*/
 void Server::handle_client_data(size_t i) {
     std::string input = receive_data(poll_fds[i].fd);
 
@@ -235,12 +286,26 @@ void Server::handle_client_data(size_t i) {
     }
 }
 
+/*
+ * @brief Close a client connection
+ * @param i The index of the client in the poll_fds vector
+*/
 void Server::close_client(size_t i) {
     int client_fd = poll_fds[i].fd;
 
+    for (std::map<std::string, Channel>::iterator it = channels.begin(); it != channels.end(); ++it) {
+        it->second.removeClient(clients[client_fd].getNickname());
+    }
+    poll_fds.erase(poll_fds.begin() + i);
+    clients.erase(client_fd);
+    for (std::map<std::string, Channel>::iterator it = channels.begin(); it != channels.end(); ++it) {
+        it->second.removeOperator(clients[client_fd].getNickname());
+    }
+
+    std::cout << "Client " << client_fd << " disconnected" << std::endl;
+
     close(client_fd);
 }
-
 
 bool Server::is_valid_channel_name(const std::string& name) {
     return !name.empty() && name[0] == '#';

@@ -9,10 +9,14 @@ bool Server::already_taken_nickname(const std::string& nickname) {
     return false;
 }
 
+/*
+ * @brief Set the nickname of a client only if its valid
+ * @param client_fd The client file descriptor
+ * @param args The nickname to set
+ * @return void
+*/
 void Server::handle_nick(int client_fd, const std::string& args) {
     std::string nickname = my_trim(args);
-
-    // check if the nickname is already taken
 
     if (nickname.empty()) {
         std::string current_nick = clients[client_fd].getNickname();
@@ -36,6 +40,12 @@ void Server::handle_nick(int client_fd, const std::string& args) {
     complete_registration(client_fd);
 }
 
+/*
+ * @brief Set the username and realname of a client
+ * @param client_fd The client file descriptor
+ * @param args The username and realname to set
+ * @return void
+*/
 void Server::handle_user(int client_fd, const std::string& args) {
     if (!args.empty()) {
         size_t first_space = args.find(' ');
@@ -71,7 +81,12 @@ void Server::handle_user(int client_fd, const std::string& args) {
     }
 }
 
-
+/*
+ * @brief Join a channel
+ * @param client_fd The client file descriptor
+ * @param args The channel name to join
+ * @return void
+*/
 void Server::handle_join(int client_fd, const std::string& args) {
     std::string channel_name = my_trim(args);
 
@@ -106,6 +121,12 @@ void Server::handle_join(int client_fd, const std::string& args) {
     }
 }
 
+/*
+ * @brief Send a message to a client or channel
+ * @param client_fd The client file descriptor
+ * @param args The target and message
+ * @return void
+*/
 void Server::handle_privmsg(int client_fd, const std::string& args) {
     std::string target;
     std::string message;
@@ -175,6 +196,12 @@ void Server::handle_privmsg(int client_fd, const std::string& args) {
     }
 }
 
+/*
+ * @brief Authenticate a client
+ * @param client_fd The client file descriptor
+ * @param args The password
+ * @return void
+*/
 void Server::handle_pass(int client_fd, const std::string& args) {
     if (clients[client_fd].hasNick() || clients[client_fd].hasUser()) {
         std::string error_msg = "PASS command must be sent before NICK/USER\r\n";
@@ -199,6 +226,12 @@ void Server::handle_pass(int client_fd, const std::string& args) {
     }
 }
 
+/*
+ * @brief Close a client connection
+ * @param client_fd The client file descriptor
+ * @param args The quit message
+ * @return void
+*/
 void Server::handle_quit(int client_fd, const std::string& args) {
     std::string quit_msg = clients[client_fd].getNickname() + " has quit";
     
@@ -221,17 +254,35 @@ void Server::handle_quit(int client_fd, const std::string& args) {
     close_client(client_fd);
 }
 
+/*
+ * @brief Handle the CAP command
+ * @param client_fd The client file descriptor
+ * @param args The arguments
+ * @return void
+*/
 void Server::handle_cap(int client_fd, const std::string& args) {
     (void)args;
     std::string response = "CAP * NAK :No supported capabilities\r\n";
     send(client_fd, response.c_str(), response.size(), 0);
 }
 
+/*
+ * @brief Handle the PING command
+ * @param client_fd The client file descriptor
+ * @param args The arguments
+ * @return void
+*/
 void Server::handle_ping(int client_fd, const std::string& args) {
     std::string response = "PONG :" + args + "\r\n";
     send(client_fd, response.c_str(), response.size(), 0);
 }
 
+/*
+ * @brief Handle the PONG command
+ * @param client_fd The client file descriptor
+ * @param args The arguments
+ * @return void
+*/
 void Server::handle_pong(int client_fd, const std::string& args) {
     (void)client_fd;
     (void)args;
