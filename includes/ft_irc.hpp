@@ -5,9 +5,9 @@
 # include <vector>
 # include <stdexcept>
 # include <netinet/in.h>
-# include <sys/types.h>       // Added for socket types
+# include <sys/types.h>
 # include <sys/socket.h>
-# include <arpa/inet.h>       // Added for htonl, htons, ntohl, ntohs functions
+# include <arpa/inet.h>
 # include <fcntl.h>
 # include <unistd.h>
 # include <poll.h>
@@ -19,7 +19,6 @@
 # include <cctype>
 # include <sstream>
 # include <ctime>
-// include for RPL_msg
 # define RPL_WELCOME 001
 # define RPL_YOURHOST 002
 # define RPL_CREATED 003
@@ -34,5 +33,6 @@
 std::string intToString(int number);
 bool is_valid_nickname_char(char c);
 bool is_valid_realname_char(char c);
+bool user_in_channel(const std::map<std::string, Client*>& clients_in_channel, const std::string& nickname);
 
-#endif // FT_IRC_HPP
+#endif

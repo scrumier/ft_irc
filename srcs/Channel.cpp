@@ -27,8 +27,20 @@ const std::string& Channel::getTopic() const {
     return topic;
 }
 
-void Channel::setTopic(const std::string& topic) {
-    this->topic = topic;
+const std::map<std::string, Client*>& Channel::getInvitedClients() const {
+    return invited_clients;
+}
+
+void Channel::inviteClient(const std::string& nickname, Client* client) {
+    invited_clients[nickname] = client;
+}
+
+bool Channel::isInvited(const std::string& nickname) const {
+    return invited_clients.find(nickname) != invited_clients.end();
+}
+
+void Channel::setTopic(const std::string& new_topic) {
+    this->topic = new_topic;
 }
 
 const std::string& Channel::getPassword() const {

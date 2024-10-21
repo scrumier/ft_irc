@@ -1,6 +1,6 @@
 #include "ft_irc.hpp"
 
-bool Server::taken_nickname(const std::string& nickname) {
+bool Server::already_taken_nickname(const std::string& nickname) {
     for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); ++it) {
         if (it->second.getNickname() == nickname) {
             return true;
@@ -9,10 +9,14 @@ bool Server::taken_nickname(const std::string& nickname) {
     return false;
 }
 
+/*
+ * @brief Set the nickname of a client only if its valid
+ * @param client_fd The client file descriptor
+ * @param args The nickname to set
+ * @return void
+*/
 void Server::handle_nick(int client_fd, const std::string& args) {
     std::string nickname = my_trim(args);
-
-    // check if the nickname is already taken
 
     if (nickname.empty()) {
         std::string current_nick = clients[client_fd].getNickname();
@@ -23,7 +27,7 @@ void Server::handle_nick(int client_fd, const std::string& args) {
         std::string error_msg = "Nickname too long. Max 9 characters.\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
-    } else if (!taken_nickname(nickname)) {
+    } else if (already_taken_nickname(nickname)) {
         std::string error_msg = "Nickname already taken.\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
@@ -36,8 +40,12 @@ void Server::handle_nick(int client_fd, const std::string& args) {
     complete_registration(client_fd);
 }
 
-// Server.cpp
-
+/*
+ * @brief Set the username and realname of a client
+ * @param client_fd The client file descriptor
+ * @param args The username and realname to set
+ * @return void
+*/
 void Server::handle_user(int client_fd, const std::string& args) {
     if (!args.empty()) {
         size_t first_space = args.find(' ');
@@ -73,7 +81,12 @@ void Server::handle_user(int client_fd, const std::string& args) {
     }
 }
 
-
+/*
+ * @brief Join a channel
+ * @param client_fd The client file descriptor
+ * @param args The channel name to join
+ * @return void
+*/
 void Server::handle_join(int client_fd, const std::string& args) {
     std::string channel_name = my_trim(args);
 
@@ -94,11 +107,17 @@ void Server::handle_join(int client_fd, const std::string& args) {
     }
 
     Channel& channel = channels[channel_name];
-    std::map<std::string, Client*>& clients_in_channel = channel.getClients(); // Use Client* here
+    std::map<std::string, Client*>& clients_in_channel = channel.getClients();
     std::string client_nickname = clients[client_fd].getNickname();
 
     if (clients_in_channel.find(client_nickname) == clients_in_channel.end()) {
-        clients_in_channel[client_nickname] = &clients[client_fd]; // Store pointer to Client
+        clients_in_channel[client_nickname] = &clients[client_fd];
+        if (clients_in_channel.size() == 1) {
+            channel.addOperator(client_nickname);
+            std::string op_msg = client_nickname + " is now an operator in channel " + channel_name + ".\r\n";
+            send(client_fd, op_msg.c_str(), op_msg.size(), 0);
+            std::cout << "Client " << client_fd << " joined channel " << channel_name << " and became operator." << std::endl;
+        }
         std::string join_msg = "You have joined channel " + channel_name + ".\r\n";
         send(client_fd, join_msg.c_str(), join_msg.size(), 0);
         std::cout << "Client " << client_fd << " joined channel " << channel_name << std::endl;
@@ -108,15 +127,21 @@ void Server::handle_join(int client_fd, const std::string& args) {
     }
 }
 
+/*
+ * @brief Send a message to a client or channel
+ * @param client_fd The client file descriptor
+ * @param args The target and message
+ * @return void
+*/
 void Server::handle_privmsg(int client_fd, const std::string& args) {
-    std::istringstream iss(args);
-    std::string target, message;
-    
-    iss >> target;
-    std::getline(iss, message);
-    
-    target = my_trim(target);
-    message = my_trim(message);
+    std::string target;
+    std::string message;
+
+    size_t colon = args.find(':');
+    if (colon != std::string::npos) {
+        target = my_trim(args.substr(0, colon));
+        message = my_trim(args.substr(colon));
+    }
     
     if (target.empty() || message.empty() || message[0] != ':') {
         std::string error_msg = "Invalid message format. Use /PRIVMSG <target> :<message>\r\n";
@@ -125,47 +150,64 @@ void Server::handle_privmsg(int client_fd, const std::string& args) {
     }
 
     message = message.substr(1);
-    
+
     std::string sender_nickname = clients[client_fd].getNickname();
     
-    if (channels.find(target) != channels.end()) {
-        std::string msg = sender_nickname + ": " + message + "\r\n";
-        Channel& channel = channels[target];
-        std::map<std::string, Client*>& clients_in_channel = channel.getClients(); // Use Client* here
-        
-        for (std::map<std::string, Client*>::iterator it = clients_in_channel.begin(); it != clients_in_channel.end(); ++it) {
-            if (it->first != sender_nickname) {
-                int target_fd = it->second->getFd();
-                if (target_fd < 0) {
-                    std::cerr << "Error: Invalid file descriptor for client " << it->first << std::endl;
-                    continue;
-                }
-                if (send(target_fd, msg.c_str(), msg.size(), 0) == -1) {
-                    std::cerr << "Error sending message to " << it->first << std::endl;
-                }
-            }
+    // Check if the target is a channel and if the client is in that channel
+    if (target[0] == '#') {
+        if (channels.find(target) == channels.end()) {
+            std::string error_msg = "Channel " + target + " does not exist.\r\n";
+            send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+            return;
         }
-        std::cout << "Client " << sender_nickname << " sent message to channel " << target << std::endl;
-    }
-    else {
-        bool user_found = false;
+        Channel& channel = channels[target];
+        std::map<std::string, Client*>& clients_in_channel = channel.getClients();
+        if (clients_in_channel.find(sender_nickname) == clients_in_channel.end()) {
+            std::string error_msg = "You are not in channel " + target + ".\r\n";
+            send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+            return;
+        }
+        for (std::map<std::string, Client*>::iterator it = clients_in_channel.begin(); it != clients_in_channel.end(); ++it) {
+            std::string msg = sender_nickname + " PRIVMSG " + target + " :" + message + "\r\n";
+            send(it->second->getFd(), msg.c_str(), msg.size(), 0);
+        }
+    } else {
+        bool target_found = false;
         for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); ++it) {
             if (it->second.getNickname() == target) {
-                std::string msg = sender_nickname + ": " + message + "\r\n";
-                send(it->first, msg.c_str(), msg.size(), 0);
-                user_found = true;
-                std::cout << "Client " << sender_nickname << " sent private message to " << target << std::endl;
+                target_found = true;
                 break;
             }
         }
-        
-        if (!user_found) {
-            std::string error_msg = "User or channel not found.\r\n";
+        if (!target_found) {
+            std::string error_msg = "Client " + target + " not found.\r\n";
             send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+            return;
+        }
+
+        if (target == sender_nickname) {
+            std::string error_msg = "You cannot send a message to yourself.\r\n";
+            send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+            return;
+        }
+
+        for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); ++it) {
+            if (it->second.getNickname() == target) {
+                std::string msg = sender_nickname + " PRIVMSG " + target + " :" + message + "\r\n";
+                send(it->first, msg.c_str(), msg.size(), 0);
+                std::cout << "Client " << client_fd << " sent message to " << target << ": " << message << std::endl;
+                return;
+            }
         }
     }
 }
 
+/*
+ * @brief Authenticate a client
+ * @param client_fd The client file descriptor
+ * @param args The password
+ * @return void
+*/
 void Server::handle_pass(int client_fd, const std::string& args) {
     if (clients[client_fd].hasNick() || clients[client_fd].hasUser()) {
         std::string error_msg = "PASS command must be sent before NICK/USER\r\n";
@@ -190,7 +232,12 @@ void Server::handle_pass(int client_fd, const std::string& args) {
     }
 }
 
-
+/*
+ * @brief Close a client connection
+ * @param client_fd The client file descriptor
+ * @param args The quit message
+ * @return void
+*/
 void Server::handle_quit(int client_fd, const std::string& args) {
     std::string quit_msg = clients[client_fd].getNickname() + " has quit";
     
@@ -201,7 +248,7 @@ void Server::handle_quit(int client_fd, const std::string& args) {
     
     for (std::map<std::string, Channel>::iterator it = channels.begin(); it != channels.end(); ++it) {
         Channel& channel = it->second;
-        std::map<std::string, Client*>& clients_in_channel = channel.getClients(); // Use Client* here
+        std::map<std::string, Client*>& clients_in_channel = channel.getClients();
         
         std::map<std::string, Client*>::iterator client_it = clients_in_channel.find(clients[client_fd].getNickname());
         if (client_it != clients_in_channel.end()) {
@@ -213,20 +260,104 @@ void Server::handle_quit(int client_fd, const std::string& args) {
     close_client(client_fd);
 }
 
+/*
+ * @brief Handle the CAP command
+ * @param client_fd The client file descriptor
+ * @param args The arguments
+ * @return void
+*/
 void Server::handle_cap(int client_fd, const std::string& args) {
     (void)args;
     std::string response = "CAP * NAK :No supported capabilities\r\n";
     send(client_fd, response.c_str(), response.size(), 0);
 }
 
+/*
+ * @brief Handle the PING command
+ * @param client_fd The client file descriptor
+ * @param args The arguments
+ * @return void
+*/
 void Server::handle_ping(int client_fd, const std::string& args) {
     std::string response = "PONG :" + args + "\r\n";
     send(client_fd, response.c_str(), response.size(), 0);
 }
 
+/*
+ * @brief Handle the PONG command
+ * @param client_fd The client file descriptor
+ * @param args The arguments
+ * @return void
+*/
 void Server::handle_pong(int client_fd, const std::string& args) {
     (void)client_fd;
     (void)args;
+}
+
+void Server::handle_kick(int client_fd, const std::string& args) {
+    // Parsing the command args
+    size_t first_space = args.find(' ');
+    size_t second_space = args.find(' ', first_space + 1);
+    
+    if (first_space == std::string::npos || second_space == std::string::npos) {
+        std::string error_msg = "Usage: /KICK <channel> <user> :<reason>\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+    
+    std::string channel_name = my_trim(args.substr(0, first_space));
+    std::string target_nickname = my_trim(args.substr(first_space + 1, second_space - first_space - 1));
+    std::string reason = my_trim(args.substr(second_space + 1));
+    
+    if (reason.empty() || reason[0] != ':') {
+        std::string error_msg = "Invalid KICK format. Reason must start with ':'\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+
+    reason = reason.substr(1);  // Remove ':' from reason
+
+    // Check if the channel exists
+    if (channels.find(channel_name) == channels.end()) {
+        std::string error_msg = "Channel " + channel_name + " does not exist.\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+
+    Channel& channel = channels[channel_name];
+    
+    // Verify if the client issuing the KICK is an operator
+    std::string kicker_nickname = clients[client_fd].getNickname();
+    if (!channel.isOperator(kicker_nickname)) {
+        std::string error_msg = "You are not an operator in channel " + channel_name + ".\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+    
+    // Check if the target user is in the channel
+    if (!channel.isClient(target_nickname)) {
+        std::string error_msg = "User " + target_nickname + " is not in channel " + channel_name + ".\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+
+    // Get the target client's file descriptor
+    Client* target_client = channel.getClients()[target_nickname];
+    int target_fd = target_client->getFd();
+
+    // Send a message to all users in the channel that the user was kicked
+    std::string kick_msg = kicker_nickname + " KICK " + channel_name + " " + target_nickname + " :" + reason + "\r\n";
+    std::map<std::string, Client*>& clients_in_channel = channel.getClients();
+    for (std::map<std::string, Client*>::iterator it = clients_in_channel.begin(); it != clients_in_channel.end(); ++it) {
+        send(it->second->getFd(), kick_msg.c_str(), kick_msg.size(), 0);
+    }
+
+    // Remove the client from the channel
+    channel.removeClient(target_nickname);
+
+    // Inform the kicked user
+    std::string user_kicked_msg = "You have been kicked from " + channel_name + " by " + kicker_nickname + " :" + reason + "\r\n";
+    send(target_fd, user_kicked_msg.c_str(), user_kicked_msg.size(), 0);
 }
 
 void Server::initialize_command_map() {
@@ -239,4 +370,7 @@ void Server::initialize_command_map() {
     command_map["CAP"] = &Server::handle_cap;
     command_map["PING"] = &Server::handle_ping;
     command_map["PONG"] = &Server::handle_pong;
+    command_map["KICK"] = &Server::handle_kick;
+    command_map["INVITE"] = &Server::handle_invite;
+    command_map["TOPIC"] = &Server::handle_topic;
 }
