@@ -99,7 +99,7 @@ void Client::setFd(int fd) {
 }
 
 bool Client::isRegistered() const {
-    return registered; // TODO change this
+    return true; // TODO change this
 }
 
 void Client::setRegistered(bool registered) {

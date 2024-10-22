@@ -112,6 +112,12 @@ void Server::handle_join(int client_fd, const std::string& args) {
     if (clients_in_channel.find(client_nickname) == clients_in_channel.end()) {
         clients_in_channel[client_nickname] = &clients[client_fd];
         std::string join_msg = ":" + client_nickname + " JOIN " + channel_name + "\r\n";
+        if (clients_in_channel.size() == 1) {
+            channel.addOperator(client_nickname);
+            std::string op_msg = client_nickname + " is now an operator in channel " + channel_name + ".\r\n";
+            send(client_fd, op_msg.c_str(), op_msg.size(), 0);
+            std::cout << "Client " << client_fd << " joined channel " << channel_name << " and became operator." << std::endl;
+        }
         send(client_fd, join_msg.c_str(), join_msg.size(), 0);
         std::cout << "Client " << clients[client_fd].getNickname() << " joined channel " << channel_name << std::endl;
     } else {
@@ -161,8 +167,7 @@ void Server::handle_privmsg(int client_fd, const std::string& args) {
         }
         for (std::map<std::string, Client*>::iterator it = clients_in_channel.begin(); it != clients_in_channel.end(); ++it) {
             std::string msg = ":" + sender_nickname + " PRIVMSG " + target + " :" + message + "\r\n";
-            if (it->first != sender_nickname)
-                send(it->second->getFd(), msg.c_str(), msg.size(), 0);
+            send(it->second->getFd(), msg.c_str(), msg.size(), 0);
         }
     } else {
         bool target_found = false;
@@ -172,13 +177,14 @@ void Server::handle_privmsg(int client_fd, const std::string& args) {
                 break;
             }
         }
-        if (target == sender_nickname) {
-            std::string error_msg = ":" + server_name + " 401 " + sender_nickname + " :You cannot send a message to yourself\r\n";
+        if (!target_found) {
+            std::string error_msg = ":" + server_name + " 401 " + sender_nickname + " " + target + " :No such nick/channel\r\n";
             send(client_fd, error_msg.c_str(), error_msg.size(), 0);
             return;
         }
-        if (!target_found) {
-            std::string error_msg = ":" + server_name + " 401 " + sender_nickname + " " + target + " :No such nick/channel\r\n";
+
+        if (target == sender_nickname) {
+            std::string error_msg = ":" + server_name + " 401 " + sender_nickname + " :You cannot send a message to yourself\r\n";
             send(client_fd, error_msg.c_str(), error_msg.size(), 0);
             return;
         }
@@ -186,6 +192,7 @@ void Server::handle_privmsg(int client_fd, const std::string& args) {
         for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); ++it) {
             if (it->second.getNickname() == target) {
                 std::string msg = ":" + sender_nickname + " PRIVMSG " + target + " :" + message + "\r\n";
+
                 send(it->first, msg.c_str(), msg.size(), 0);
                 std::cout << "Client " << clients[client_fd].getNickname() << " sent message to " << target << ": " << message << std::endl;
                 return;
@@ -286,6 +293,72 @@ void Server::handle_pong(int client_fd, const std::string& args) {
     (void)args;
 }
 
+void Server::handle_kick(int client_fd, const std::string& args) {
+    // Parsing the command args
+    size_t first_space = args.find(' ');
+    size_t second_space = args.find(' ', first_space + 1);
+    
+    if (first_space == std::string::npos || second_space == std::string::npos) {
+        std::string error_msg = "Usage: /KICK <channel> <user> :<reason>\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+    
+    std::string channel_name = my_trim(args.substr(0, first_space));
+    std::string target_nickname = my_trim(args.substr(first_space + 1, second_space - first_space - 1));
+    std::string reason = my_trim(args.substr(second_space + 1));
+    
+    if (reason.empty() || reason[0] != ':') {
+        std::string error_msg = "Invalid KICK format. Reason must start with ':'\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+
+    reason = reason.substr(1);  // Remove ':' from reason
+
+    // Check if the channel exists
+    if (channels.find(channel_name) == channels.end()) {
+        std::string error_msg = "Channel " + channel_name + " does not exist.\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+
+    Channel& channel = channels[channel_name];
+    
+    // Verify if the client issuing the KICK is an operator
+    std::string kicker_nickname = clients[client_fd].getNickname();
+    if (!channel.isOperator(kicker_nickname)) {
+        std::string error_msg = "You are not an operator in channel " + channel_name + ".\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+    
+    // Check if the target user is in the channel
+    if (!channel.isClient(target_nickname)) {
+        std::string error_msg = "User " + target_nickname + " is not in channel " + channel_name + ".\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+
+    // Get the target client's file descriptor
+    Client* target_client = channel.getClients()[target_nickname];
+    int target_fd = target_client->getFd();
+
+    // Send a message to all users in the channel that the user was kicked
+    std::string kick_msg = kicker_nickname + " KICK " + channel_name + " " + target_nickname + " :" + reason + "\r\n";
+    std::map<std::string, Client*>& clients_in_channel = channel.getClients();
+    for (std::map<std::string, Client*>::iterator it = clients_in_channel.begin(); it != clients_in_channel.end(); ++it) {
+        send(it->second->getFd(), kick_msg.c_str(), kick_msg.size(), 0);
+    }
+
+    // Remove the client from the channel
+    channel.removeClient(target_nickname);
+
+    // Inform the kicked user
+    std::string user_kicked_msg = "You have been kicked from " + channel_name + " by " + kicker_nickname + " :" + reason + "\r\n";
+    send(target_fd, user_kicked_msg.c_str(), user_kicked_msg.size(), 0);
+}
+
 void Server::initialize_command_map() {
     command_map["NICK"] = &Server::handle_nick;
     command_map["USER"] = &Server::handle_user;
@@ -296,4 +369,7 @@ void Server::initialize_command_map() {
     command_map["CAP"] = &Server::handle_cap;
     command_map["PING"] = &Server::handle_ping;
     command_map["PONG"] = &Server::handle_pong;
+    command_map["KICK"] = &Server::handle_kick;
+    command_map["INVITE"] = &Server::handle_invite;
+    command_map["TOPIC"] = &Server::handle_topic;
 }

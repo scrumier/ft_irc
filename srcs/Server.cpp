@@ -180,7 +180,7 @@ void Server::parse_command(const std::string& input, std::string& command, std::
 
     if (space_pos != std::string::npos) {
         command = trimmed_input.substr(0, space_pos);
-        args = trimmed_input.substr(space_pos);
+        args = trimmed_input.substr(space_pos + 1);
     } else {
         command = trimmed_input;
         args = "";
@@ -281,6 +281,117 @@ void Server::handle_client_data(size_t i) {
     }
 }
 
+void Server::handle_topic(int client_fd, const std::string& args) {
+    std::string channel_name;
+    std::string topic;
+
+    // Sépare le nom du canal des arguments (sujet)
+    std::istringstream iss(args);
+    iss >> channel_name;  // Le premier mot est le nom du canal
+    std::getline(iss, topic);  // Le reste est le sujet
+
+    // Vérifie si le canal existe
+    if (channels.find(channel_name) == channels.end()) {
+        std::string msg = "No such channel: " + channel_name + "\r\n";
+        send(client_fd, msg.c_str(), msg.size(), 0);
+        return;
+    }
+
+    Channel& channel = channels[channel_name];
+    Client& client = clients[client_fd];
+
+    // Si aucun sujet n'est fourni, afficher le sujet actuel
+    if (topic.empty()) {
+        std::string msg = "Current topic for " + channel_name + ": " + channel.getTopic() + "\r\n";
+        send(client_fd, msg.c_str(), msg.size(), 0);
+        return;
+    }
+
+    // Vérifie si le client est opérateur du canal
+    if (!channel.isOperator(client.getNickname())) {
+        std::string msg = "You are not an operator of this channel.\r\n";
+        send(client_fd, msg.c_str(), msg.size(), 0);
+        return;
+    }
+
+    // Met à jour le sujet du canal
+    channel.setTopic(topic);
+    std::string msg = "Topic for " + channel_name + " set to: " + topic + "\r\n";
+    send(client_fd, msg.c_str(), msg.size(), 0);
+}
+
+void Server::handle_invite(int client_fd, const std::string& args) {
+    std::stringstream ss(args);
+    std::string target_nickname, channel_name;
+
+    ss >> target_nickname >> channel_name;
+
+    if (target_nickname.empty() || channel_name.empty()) {
+        std::string error_msg = "Usage: INVITE <nickname> <channel>\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+
+    // Vérifier la taille du string avant d'utiliser substr (sécurité supplémentaire)
+    if (args.size() < target_nickname.size() + channel_name.size()) {
+        std::string error_msg = "Error: invalid command format.\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+
+    // Vérification de l'existence du canal
+    if (channels.find(channel_name) == channels.end()) {
+        std::string error_msg = "Channel " + channel_name + " does not exist.\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+
+    Channel& channel = channels[channel_name];
+    std::string sender_nickname = clients[client_fd].getNickname();
+
+    // Vérification que l'utilisateur est un opérateur
+    if (!channel.isOperator(sender_nickname)) {
+        std::string error_msg = "You must be a channel operator to invite users.\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+
+    // Vérification que l'utilisateur à inviter existe et est connecté
+    Client* target_client = NULL;  // Utilisation de NULL au lieu de nullptr
+    for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); ++it) {
+        if (it->second.getNickname() == target_nickname) {
+            target_client = &it->second;
+            break;
+        }
+    }
+
+    if (!target_client) {
+        std::string error_msg = "User " + target_nickname + " not found.\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+
+    // Vérification que la cible n'est pas déjà dans le canal
+    if (channel.isClient(target_nickname)) {
+        std::string error_msg = target_nickname + " is already in the channel.\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+
+    // Ajout de l'invité à la liste d'invités du canal
+    channel.inviteClient(target_nickname, target_client);
+
+    // Notifier l'utilisateur invité
+    std::string invite_msg = "You have been invited to join channel " + channel_name + " by " + sender_nickname + "\r\n";
+    send(target_client->getFd(), invite_msg.c_str(), invite_msg.size(), 0);
+
+    // Notifier l'opérateur qui a invité
+    std::string confirm_msg = "You have invited " + target_nickname + " to " + channel_name + ".\r\n";
+    send(client_fd, confirm_msg.c_str(), confirm_msg.size(), 0);
+
+    std::cout << "Client " << sender_nickname << " invited " << target_nickname << " to " << channel_name << std::endl;
+}
+
 /*
  * @brief Close a client connection
  * @param i The index of the client in the poll_fds vector
@@ -305,3 +416,5 @@ void Server::close_client(size_t i) {
 bool Server::is_valid_channel_name(const std::string& name) {
     return !name.empty() && name[0] == '#';
 }
+
+

@@ -10,6 +10,7 @@ private:
     std::map<std::string, Client*> clients;
     std::map<std::string, Client*> invited_clients;
     std::vector<std::string> operators;
+    
 
 public:
     Channel();
@@ -31,6 +32,10 @@ public:
 
     const std::vector<std::string>& getOperators() const;
     std::vector<std::string>& getOperators();
+
+    const std::map<std::string, Client*>& getInvitedClients() const;
+    void inviteClient(const std::string& nickname, Client* client);
+    bool isInvited(const std::string& nickname) const;
 
     void addClient(const std::string& nickname, Client* client);
     void removeClient(const std::string& nickname);

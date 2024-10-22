@@ -19,6 +19,11 @@
 # include <cctype>
 # include <sstream>
 # include <ctime>
+# define RPL_WELCOME 001
+# define RPL_YOURHOST 002
+# define RPL_CREATED 003
+# define RPL_MYINFO 004
+# define RPL_ISUPPORT 005
 
 # define BACKLOG 5
 # define MAX_CLIENTS 10
