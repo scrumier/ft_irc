@@ -15,6 +15,7 @@ private:
     bool registered;
     bool has_nick;
     bool has_user;
+	time_t time_to_connect;
 
 public:
     Client();
@@ -53,6 +54,9 @@ public:
 
     bool hasUser() const;
     void setHasUser(bool has_user);
+
+	time_t getTimeToConnect() const;
+	void setTimeToConnect(time_t time_to_connect);
 };
 
 #endif

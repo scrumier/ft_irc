@@ -1,8 +1,12 @@
 #include "ft_irc.hpp"
 
-Client::Client() : nickname(""), username(""), realname(""), authenticated(false), admin(false), fd(-1) {}
+Client::Client() : nickname(""), username(""), realname(""), authenticated(false), admin(false), fd(-1) {
+	time_to_connect = time(NULL);
+}
 
-Client::Client(int fd) : nickname(""), username(""), realname(""), authenticated(false), admin(false), fd(fd) {}
+Client::Client(int fd) : nickname(""), username(""), realname(""), authenticated(false), admin(false), fd(fd), registered(false), has_nick(false), has_user(false) {
+	time_to_connect = time(NULL);
+}
 
 Client::~Client() {}
 
@@ -99,7 +103,7 @@ void Client::setFd(int fd) {
 }
 
 bool Client::isRegistered() const {
-    return true; // TODO change this
+    return registered;
 }
 
 void Client::setRegistered(bool registered) {
@@ -120,4 +124,12 @@ bool Client::hasUser() const {
 
 void Client::setHasUser(bool has_user) {
     this->has_user = has_user;
+}
+
+time_t Client::getTimeToConnect() const {
+	return time_to_connect;
+}
+
+void Client::setTimeToConnect(time_t time_to_connect) {
+	this->time_to_connect = time_to_connect;
 }

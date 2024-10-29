@@ -19,6 +19,9 @@
 # include <cctype>
 # include <sstream>
 # include <ctime>
+# include <signal.h>
+# include <cerrno>
+# include <sys/wait.h>
 # define RPL_WELCOME 001
 # define RPL_YOURHOST 002
 # define RPL_CREATED 003

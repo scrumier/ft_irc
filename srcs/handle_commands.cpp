@@ -36,8 +36,6 @@ void Server::handle_nick(int client_fd, const std::string& args) {
     clients[client_fd].setNickname(nickname);
     clients[client_fd].setHasNick(true);
     std::cout << "Client " << client_fd << " set nickname to " << nickname << std::endl;
-
-    complete_registration(client_fd);
 }
 
 /*
@@ -70,7 +68,6 @@ void Server::handle_user(int client_fd, const std::string& args) {
         clients[client_fd].setRealname(realname);
         clients[client_fd].setHasUser(true);
         std::cout << "Client " << client_fd << " set username to " << username << " and real name to " << realname << std::endl;
-        complete_registration(client_fd);
     } else {
         std::string username = clients[client_fd].getUsername();
         std::string realname = clients[client_fd].getRealname();
@@ -208,11 +205,6 @@ void Server::handle_privmsg(int client_fd, const std::string& args) {
  * @return void
 */
 void Server::handle_pass(int client_fd, const std::string& args) {
-    if (clients[client_fd].hasNick() || clients[client_fd].hasUser()) {
-        std::string error_msg = ":" + server_name + " 462 " + clients[client_fd].getNickname() + " :You may not reregister\r\n";
-        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
-        return;
-    }
     std::string pass = my_trim(args);
     if (clients[client_fd].isAuthenticated()) {
         std::string error_msg = ":" + server_name + " 462 " + clients[client_fd].getNickname() + " :You may not reregister\r\n";
@@ -227,7 +219,6 @@ void Server::handle_pass(int client_fd, const std::string& args) {
     } else {
         std::string error_msg = ":" + server_name + " 464 " + clients[client_fd].getNickname() + " :Password incorrect\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
-        close_client(client_fd);
     }
 }
 

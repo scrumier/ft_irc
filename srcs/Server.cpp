@@ -58,6 +58,13 @@ Server::~Server() {
 void Server::run() {
     std::cout << "Server is running..." << std::endl;
 
+    // this migt not work
+    struct sigaction sa;
+    sa.sa_handler = SIG_IGN;
+    sigaction(SIGPIPE, &sa, NULL);
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGQUIT, &sa, NULL);
+
     while (true) {
         int poll_count = poll(&poll_fds[0], poll_fds.size(), -1);
         if (poll_count == -1) {
@@ -174,10 +181,6 @@ void Server::parse_command(const std::string& input, std::string& command, std::
     std::string trimmed_input = my_trim(input);
     size_t space_pos = input.find(' ');
 
-    if (trimmed_input[0] == '/') {
-        trimmed_input = trimmed_input.substr(1);
-    }    
-
     if (space_pos != std::string::npos) {
         command = trimmed_input.substr(0, space_pos);
         args = trimmed_input.substr(space_pos + 1);
@@ -206,7 +209,9 @@ void Server::parse_command(const std::string& input, std::string& command, std::
 */
 void Server::process_command(int client_fd, const std::string& command, const std::string& args) {
     if (is_command(command)) {
-        if (!clients[client_fd].isRegistered()) {
+		std::cout << "Client is registered: " << std::boolalpha << clients[client_fd].isRegistered() << std::endl;
+
+        if (clients[client_fd].isRegistered() == false) {
             if (command == "PASS" || command == "NICK" || command == "USER" || command == "CAP" || command == "PING" || command == "PONG" || command == "QUIT") {
                 std::cout << "Executing command handler for: " << command << std::endl;
                 CommandHandler handler = command_map[command];
@@ -215,6 +220,7 @@ void Server::process_command(int client_fd, const std::string& command, const st
                 std::string error_msg = ":" + server_name + " 451 " + clients[client_fd].getNickname() + " :You have not registered. Please complete registration.\r\n";
                 send(client_fd, error_msg.c_str(), error_msg.size(), 0);
             }
+			complete_registration(client_fd);
         } else {
             std::cout << "Executing command handler for: " << command << std::endl;
             CommandHandler handler = command_map[command];
@@ -236,13 +242,7 @@ void Server::process_command(int client_fd, const std::string& command, const st
 void Server::complete_registration(int client_fd) {
     Client& client = clients[client_fd];
 
-    if (!client.isRegistered() && client.hasNick() && client.hasUser()) {
-        if (requires_password && !client.isAuthenticated()) {
-            std::string error_msg = ":" + server_name + " 464 " + client.getNickname() + " :Password incorrect\r\n";
-            send(client_fd, error_msg.c_str(), error_msg.size(), 0);
-            close_client(client_fd);
-            return;
-        }
+    if (client.isRegistered() == false && client.hasNick() && client.hasUser() && client.isAuthenticated()) {
         client.setRegistered(true);
         std::string nickname = client.getNickname();
 
@@ -273,7 +273,10 @@ void Server::handle_client_data(size_t i) {
     std::string input = receive_data(poll_fds[i].fd);
 
     if (input.empty()) {
-        close_client(i);
+        if (time(NULL) - clients[poll_fds[i].fd].getTimeToConnect() > 60) {
+            std::cerr << "No data from client " << poll_fds[i].fd << ". Closing connection." << std::endl;
+            close_client(i);
+        }
     } else {
         std::string command, args;
         parse_command(input, command, args);

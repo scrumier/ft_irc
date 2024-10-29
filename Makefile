@@ -1,3 +1,4 @@
+NAME = ircserv
 SRCDIR = srcs/
 OBJDIR = .obj/
 
@@ -12,10 +13,21 @@ SRCS = $(addprefix $(SRCDIR), \
 OBJS = $(SRCS:$(SRCDIR)%.cpp=$(OBJDIR)%.o)
 DEPS = $(OBJS:.o=.d)
 
-NAME = ircserv
+BOTNAME = bot
+BOTDIR = $(SRCDIR)bot/
+BOTOBJDIR = .obj/bot/
+
+BOTSRCS = $(addprefix $(BOTDIR), \
+		main.cpp \
+		IRCBot.cpp \
+		)
+BOTOBJS = $(BOTSRCS:$(BOTDIR)%.cpp=$(BOTOBJDIR)%.o)
+BOTDEPS = $(BOTOBJS:.o=.d)
+
 CXX = c++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98
 INC = -I includes/
+BOTINC = -I includes/bot/
 
 all: $(NAME)
 	@echo "\033[32mCompiled $(NAME)\033[0m"
@@ -32,13 +44,28 @@ $(OBJDIR):
 
 -include $(DEPS)
 
+bot: $(BOTOBJDIR) $(BOTOBJS)
+	@$(CXX) $(CXXFLAGS) $(BOTOBJS) -o $(BOTNAME)
+	@echo "\033[32mCompiled $(BOTNAME)\033[0m"
+	@echo "\033[32mUsage: ./$(BOTNAME) <server> <port> <nickname> <password> <channel>\033[0m"
+
+$(BOTOBJDIR)%.o: $(BOTDIR)%.cpp
+	@$(CXX) $(CXXFLAGS) $(BOTINC) -MMD -c $< -o $@
+
+$(BOTOBJDIR):
+	@mkdir -p $(BOTOBJDIR)
+
+-include $(BOTDEPS)
+
 clean:
 	@rm -rf $(OBJDIR)
-	@echo "\033[31mDeleted $(OBJDIR)\033[0m"
+	@rm -rf $(BOTOBJDIR)
+	@echo "\033[31mDeleted $(OBJDIR) and $(BOTOBJDIR)\033[0m"
 
 fclean: clean
 	@rm -f $(NAME)
-	@echo "\033[31mDeleted $(NAME)\033[0m"
+	@rm -f $(BOTNAME)
+	@echo "\033[31mDeleted $(NAME) and $(BOTNAME)\033[0m"
 
 re: fclean all
 
