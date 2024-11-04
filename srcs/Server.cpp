@@ -62,7 +62,7 @@ void Server::run() {
     struct sigaction sa;
     sa.sa_handler = SIG_IGN;
     sigaction(SIGPIPE, &sa, NULL);
-    sigaction(SIGINT, &sa, NULL);
+    //sigaction(SIGINT, &sa, NULL);
     sigaction(SIGQUIT, &sa, NULL);
 
     while (true) {

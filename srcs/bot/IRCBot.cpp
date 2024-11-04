@@ -6,8 +6,9 @@
 #define BUFFER_SIZE 512
 
 Bot::Bot(const std::string& server, int port, const std::string& nickname, const std::string& password, const std::string& channel)
-    : _sockfd(-1), _server(server), _port(port), _nickname(nickname), _channel(channel), _password(password) {
+    : _sockfd(-1), _server(server), _port(port), _nickname(nickname), _channel(channel), _password(password), _current_question_index(-1) {
     memset(&_pfd, 0, sizeof(_pfd));
+    initialize_trivia();
 }
 
 Bot::Bot() : _sockfd(-1) {
@@ -59,17 +60,6 @@ bool Bot::connect_to_server() {
 void Bot::send_msg(const std::string& msg) {
     std::string final_msg = msg + "\r\n";
     send(_sockfd, final_msg.c_str(), final_msg.length(), 0);
-}
-
-void Bot::handle_server_message(const std::string& message) {
-    if (message.find("001") != std::string::npos) {
-        send_msg("JOIN " + _channel);
-    }
-
-    if (message.find("PRIVMSG") != std::string::npos && message.find("!hello") != std::string::npos) {
-        std::string response = "PRIVMSG " + _channel + " :world!";
-        send_msg(response);
-    }
 }
 
 void Bot::run() {

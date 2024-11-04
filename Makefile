@@ -20,6 +20,7 @@ BOTOBJDIR = .obj/bot/
 BOTSRCS = $(addprefix $(BOTDIR), \
 		main.cpp \
 		IRCBot.cpp \
+		bot.cpp \
 		)
 BOTOBJS = $(BOTSRCS:$(BOTDIR)%.cpp=$(BOTOBJDIR)%.o)
 BOTDEPS = $(BOTOBJS:.o=.d)
@@ -45,7 +46,7 @@ $(OBJDIR):
 -include $(DEPS)
 
 bot: $(BOTOBJDIR) $(BOTOBJS)
-	@$(CXX) $(CXXFLAGS) $(BOTOBJS) -o $(BOTNAME)
+	@$(CXX) $(CXXFLAGS) -lcurl $(BOTOBJS) -o $(BOTNAME)
 	@echo "\033[32mCompiled $(BOTNAME)\033[0m"
 	@echo "\033[32mUsage: ./$(BOTNAME) <server> <port> <nickname> <password> <channel>\033[0m"
 
