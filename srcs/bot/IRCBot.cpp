@@ -21,14 +21,19 @@ Bot::~Bot() {
     }
 }
 
+std::string intToString(int num) {
+    std::ostringstream oss;
+    oss << num;
+    return oss.str();
+}
+
 bool Bot::connect_to_server() {
-    // in want to connect to the IRC server using IRC protocol with numerics replies
     struct addrinfo hints, *res;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
-    int status = getaddrinfo(_server.c_str(), std::to_string(_port).c_str(), &hints, &res);
+    int status = getaddrinfo(_server.c_str(), intToString(_port).c_str(), &hints, &res);
     if (status != 0) {
         std::cerr << "getaddrinfo: " << gai_strerror(status) << std::endl;
         return false;
@@ -56,6 +61,7 @@ bool Bot::connect_to_server() {
     sleep(1);
     return true;
 }
+
 
 void Bot::send_msg(const std::string& msg) {
     std::string final_msg = msg + "\r\n";

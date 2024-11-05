@@ -46,7 +46,7 @@ $(OBJDIR):
 -include $(DEPS)
 
 bot: $(BOTOBJDIR) $(BOTOBJS)
-	@$(CXX) $(CXXFLAGS) -lcurl $(BOTOBJS) -o $(BOTNAME)
+	@$(CXX) $(CXXFLAGS) -lssl -lcrypto $(BOTOBJS) -o $(BOTNAME)
 	@echo "\033[32mCompiled $(BOTNAME)\033[0m"
 	@echo "\033[32mUsage: ./$(BOTNAME) <server> <port> <nickname> <password> <channel>\033[0m"
 

@@ -1,9 +1,8 @@
 #include "IRCBot.hpp"
 
 #include <ctime>
-#include <curl/curl.h>
+#include <iomanip>
 
-// Initialize trivia
 void Bot::initialize_trivia() {
     _triviaQuestions["What is the capital of France?"] = "Paris";
     _triviaQuestions["What is the capital of Japan?"] = "Tokyo";
@@ -84,45 +83,38 @@ size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
     return size * nmemb;
 }
 
-#include <sstream>
-#include <iomanip>
-
 std::string parse_weather_response(const std::string& json) {
     std::string description;
     std::string temperature;
     std::string humidity;
     std::string wind_speed;
 
-    // Find and extract the weather description
     size_t desc_pos = json.find("\"description\":\"");
     if (desc_pos != std::string::npos) {
-        size_t start = desc_pos + 15; // length of "description":" is 15
+        size_t start = desc_pos + 15; 
         size_t end = json.find("\"", start);
         description = json.substr(start, end - start);
     }
 
-    // Find and extract the temperature
     size_t temp_pos = json.find("\"temp\":");
     if (temp_pos != std::string::npos) {
-        size_t start = temp_pos + 7; // length of "temp": is 7
+        size_t start = temp_pos + 7;
         size_t end = json.find(",", start);
         double temp_kelvin = std::atof(json.substr(start, end - start).c_str());
-        double temp_celsius = temp_kelvin - 273.15; // Convert from Kelvin to Celsius
+        double temp_celsius = temp_kelvin - 273.15;
 
         std::ostringstream temp_stream;
-        temp_stream << std::fixed << std::setprecision(1) << temp_celsius;
+        temp_stream << std::fixed << std::setprecision(2) << temp_celsius;
         temperature = temp_stream.str() + "°C";
     }
 
-    // Find and extract the humidity
     size_t hum_pos = json.find("\"humidity\":");
     if (hum_pos != std::string::npos) {
-        size_t start = hum_pos + 11; // length of "humidity": is 11
+        size_t start = hum_pos + 11;
         size_t end = json.find(",", start);
         humidity = json.substr(start, end - start) + "%";
     }
 
-    // Find and extract the wind speed
     size_t wind_pos = json.find("\"speed\":");
     if (wind_pos != std::string::npos) {
         size_t start = wind_pos + 8; // length of "speed": is 8
@@ -130,7 +122,6 @@ std::string parse_weather_response(const std::string& json) {
         wind_speed = json.substr(start, end - start) + " m/s";
     }
 
-    // Format the final message
     std::string weather_info = "\nWeather: " + description +
                                "\nTemp: " + temperature +
                                "\nHumidity: " + humidity +
@@ -140,41 +131,69 @@ std::string parse_weather_response(const std::string& json) {
 
 void Bot::fetch_weather(const std::string& location) {
     std::string api_key = "72bb9dab46b9ec3d65f423c63f27a9b8";
-    std::string request_url = "http://api.openweathermap.org/data/2.5/weather?q=" + location + "&appid=" + api_key;
+    std::string host = "146.185.152.20";
+    std::string request_url = "/data/2.5/weather?q=" + location + "&appid=" + api_key;
 
-    CURL* curl;
-    CURLcode res;
-    std::string response_string;
+    std::string msg = "PRIVMSG " + _channel + " :Fetching weather data for " + location + "...";
+    send_msg(msg);
 
-    curl = curl_easy_init();
-    if (curl) {
-        std::string msg = "PRIVMSG " + _channel + " :Fetching weather data for " + location + "...";
-        send_msg(msg);
-        curl_easy_setopt(curl, CURLOPT_URL, request_url.c_str());
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_string);
+    struct addrinfo hints;
+    struct addrinfo* res;
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
 
-        res = curl_easy_perform(curl);
-        if (res != CURLE_OK) {
-            std::cerr << "curl_easy_perform() failed: " << curl_easy_strerror(res) << std::endl;
-        }
+    if (getaddrinfo(host.c_str(), "80", &hints, &res) != 0) {
+        std::cerr << "Failed to resolve host" << std::endl;
+        return;
+    }
 
-        curl_easy_cleanup(curl);
+    int sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    if (sockfd == -1) {
+        std::cerr << "Failed to create socket" << std::endl;
+        freeaddrinfo(res);
+        return;
+    }
 
-        std::string clean_response = parse_weather_response(response_string);
+    if (connect(sockfd, res->ai_addr, res->ai_addrlen) == -1) {
+        std::cerr << "Failed to connect to server" << std::endl;
+        close(sockfd);
+        freeaddrinfo(res);
+        return;
+    }
+    freeaddrinfo(res);
 
-        // Parse or process the response (you can use a JSON parser for structured data)
-        std::string response = "PRIVMSG " + _channel + " :Weather data: " + clean_response;
-        send_msg(response);
+    std::string request = "GET " + request_url + " HTTP/1.1\r\n";
+    request += "Host: " + host + "\r\n";
+    request += "Connection: close\r\n\r\n";
+
+    send(sockfd, request.c_str(), request.size(), 0);
+
+    char buffer[4096];
+    std::string response;
+    ssize_t bytes_received;
+    while ((bytes_received = recv(sockfd, buffer, sizeof(buffer) - 1, 0)) > 0) {
+        buffer[bytes_received] = '\0';
+        response += buffer;
+    }
+
+    close(sockfd);
+
+    size_t json_pos = response.find("\r\n\r\n");
+    if (json_pos != std::string::npos) {
+        std::string json_response = response.substr(json_pos + 4); // Skip the header section
+
+        std::string clean_response = parse_weather_response(json_response);
+
+        std::string reply = "PRIVMSG " + _channel + " :Weather data: " + clean_response;
+        send_msg(reply);
     } else {
-        std::cerr << "Failed to initialize CURL" << std::endl;
+        std::cerr << "Failed to parse weather response" << std::endl;
     }
 }
 
-void Bot::fetch_crypto_price(const std::string& crypto_symbol) {
-    (void)crypto_symbol;
-    // Implement the function to fetch cryptocurrency price
-    return;
+std::string chatToString(const char* chat) {
+    std::string str(chat);
+    return str;
 }
 
 void Bot::handle_server_message(const std::string& message) {
@@ -200,11 +219,6 @@ void Bot::handle_server_message(const std::string& message) {
             std::cout << "Handling weather message" << std::endl;
             std::string location = message.substr(message.find("!weather ") + 9);
             fetch_weather(location);
-        }
-        else if (message.find("!crypto ") != std::string::npos) {
-            std::cout << "Handling crypto message" << std::endl;
-            std::string crypto_symbol = message.substr(message.find("!crypto ") + 8);
-            fetch_crypto_price(crypto_symbol);
         }
     }
 }

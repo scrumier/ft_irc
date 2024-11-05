@@ -7,7 +7,7 @@ int main(int argc, char *argv[]) {
     }
 
     try {
-        int port = std::atoi(argv[1]);
+        int port = atoi(argv[1]);
         if (port <= 0 || port > 65535) {
             throw std::runtime_error("Invalid port number");
         }

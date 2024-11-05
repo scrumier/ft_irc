@@ -9,12 +9,22 @@
 #include <netdb.h>
 #include <poll.h>
 #include <map>
+#include <netdb.h>
+#include <vector>
+#include <cerrno>
+#include <cstdlib>
+#include <sstream>
+#include <unistd.h>
+#include <cstring>
+#include <string>
 
 // Structure for trivia questions
 struct TriviaQuestion {
     std::string question;
     std::string answer;
 };
+
+std::string intToString(int num);
 
 class Bot {
 private:
@@ -25,7 +35,6 @@ private:
     std::string _channel;
     std::string _password;
     struct pollfd _pfd;
-    // map of trivia questions
     std::map<std::string, std::string> _triviaQuestions;
     int _current_question_index;
 
@@ -45,8 +54,8 @@ public:
     void check_trivia_answer(const std::string& user_answer);
 
     void fetch_weather(const std::string& location);
-    void fetch_crypto_price(const std::string& crypto_symbol);
+    void ask_chatgpt(const std::string& question);
     
 };
 
-#endif // BOT_HPP
+#endif
