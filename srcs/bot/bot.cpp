@@ -139,7 +139,7 @@ std::string parse_weather_response(const std::string& json) {
 }
 
 void Bot::fetch_weather(const std::string& location) {
-    std::string api_key = "72bb9dab46b9ec3d65f423c63f27a9b8";  // Replace with your actual API key
+    std::string api_key = "72bb9dab46b9ec3d65f423c63f27a9b8";
     std::string request_url = "http://api.openweathermap.org/data/2.5/weather?q=" + location + "&appid=" + api_key;
 
     CURL* curl;

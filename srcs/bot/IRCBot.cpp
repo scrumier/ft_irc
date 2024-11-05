@@ -78,7 +78,7 @@ void Bot::run() {
             int bytes_received = recv(_sockfd, buffer, BUFFER_SIZE, 0);
             if (bytes_received < 0) {
                 std::cerr << "recv: " << strerror(errno) << std::endl;
-                break;
+                continue;
             }
 
             msg_from_server += std::string(buffer, bytes_received);
