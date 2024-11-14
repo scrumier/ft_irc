@@ -9,7 +9,7 @@
 #include <netdb.h>
 #include <poll.h>
 #include <map>
-#include <stdio.h>
+#include <cstdlib>
 
 // Structure for trivia questions
 struct TriviaQuestion {
