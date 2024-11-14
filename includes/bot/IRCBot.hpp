@@ -10,6 +10,7 @@
 #include <poll.h>
 #include <map>
 #include <cstdlib>
+#include <cerrno>
 
 // Structure for trivia questions
 struct TriviaQuestion {
