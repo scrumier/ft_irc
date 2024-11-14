@@ -36,6 +36,7 @@ private:
     void handle_privmsg(int client_fd, const std::string& args);
     void handle_pass(int client_fd, const std::string& args);
     void handle_quit(int client_fd, const std::string& args);
+    void handle_part(int client_fd, const std::string& args);
 
     bool is_command(const std::string& command);
     std::string my_trim(const std::string& str);
