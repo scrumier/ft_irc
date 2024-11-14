@@ -10,7 +10,8 @@ int main(int argc, char* argv[]) {
     int port = atoi(argv[2]);
     std::string nickname = argv[3];
     std::string password = argv[4];
-    std::string channel = argv[5];
+    std::string channel_tmp = argv[5];
+    std::string channel = "#" + channel_tmp;
 
     Bot bot(server, port, nickname, password, channel);
 

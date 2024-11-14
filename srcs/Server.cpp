@@ -58,12 +58,12 @@ Server::~Server() {
 void Server::run() {
     std::cout << "Server is running..." << std::endl;
 
-    // this migt not work
-    struct sigaction sa;
-    sa.sa_handler = SIG_IGN;
-    sigaction(SIGPIPE, &sa, NULL);
-    //sigaction(SIGINT, &sa, NULL);
-    sigaction(SIGQUIT, &sa, NULL);
+    // // this migt not work
+    // struct sigaction sa;
+    // sa.sa_handler = SIG_IGN;
+    // sigaction(SIGPIPE, &sa, NULL);
+    // //sigaction(SIGINT, &sa, NULL);
+    // sigaction(SIGQUIT, &sa, NULL);
 
     while (true) {
         int poll_count = poll(&poll_fds[0], poll_fds.size(), -1);
