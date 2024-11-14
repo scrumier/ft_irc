@@ -78,6 +78,49 @@ void Server::handle_user(int client_fd, const std::string& args) {
 }
 
 /*
+ * @brief Part a channel
+ * @param client_fd The client file descriptor
+ * @param args The channel name to part
+ * @return void
+*/
+void Server::handle_part(int client_fd, const std::string& args) {
+    std::string channel_name = my_trim(args);
+
+    if (channel_name.empty()) {
+        std::string error_msg = ":" + server_name + " 461 PART :Not enough parameters\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+
+    if (!is_valid_channel_name(channel_name)) {
+        std::string error_msg = ":" + server_name + " 403 " + clients[client_fd].getNickname() + " " + channel_name + " :No such channel\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+
+    if (channels.find(channel_name) == channels.end()) {
+        std::string error_msg = ":" + server_name + " 403 " + clients[client_fd].getNickname() + " " + channel_name + " :You're not on that channel\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+
+    Channel& channel = channels[channel_name];
+    std::map<std::string, Client*>& clients_in_channel = channel.getClients();
+    std::string client_nickname = clients[client_fd].getNickname();
+
+    if (clients_in_channel.find(client_nickname) == clients_in_channel.end()) {
+        std::string error_msg = ":" + server_name + " 442 " + client_nickname + " " + channel_name + " :You're not on that channel\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
+
+    clients_in_channel.erase(client_nickname);
+    std::string part_msg = ":" + client_nickname + " PART " + channel_name + "\r\n";
+    send(client_fd, part_msg.c_str(), part_msg.size(), 0);
+    std::cout << "Client " << clients[client_fd].getNickname() << " left channel " << channel_name << std::endl;
+}
+
+/*
  * @brief Join a channel
  * @param client_fd The client file descriptor
  * @param args The channel name to join
@@ -356,6 +399,7 @@ void Server::initialize_command_map() {
     command_map["JOIN"] = &Server::handle_join;
     command_map["PRIVMSG"] = &Server::handle_privmsg;
     command_map["PASS"] = &Server::handle_pass;
+    command_map["PART"] = &Server::handle_part;
     command_map["QUIT"] = &Server::handle_quit;
     command_map["CAP"] = &Server::handle_cap;
     command_map["PING"] = &Server::handle_ping;
