@@ -53,7 +53,10 @@ private:
 public:
     Server(int port, const std::string& password);
     ~Server();
+
     void run();
+
+    void send_ping(int client_fd);
 };
 
 #endif // SERVER_HPP

@@ -1,4 +1,4 @@
-#include "IRCBot.hpp"
+#include "bot/IRCBot.hpp"
 
 #include <ctime>
 #include <curl/curl.h>
@@ -37,6 +37,7 @@ void Bot::initialize_trivia() {
     _triviaQuestions["What is the smallest reptile in the world?"] = "Brookesia micra";
     _triviaQuestions["What is the largest amphibian in the world?"] = "Chinese giant salamander";
     _triviaQuestions["What is the smallest amphibian in the world?"] = "Paedophryne amauensis";
+    _triviaQuestions["Answer to the Ultimate Question of Life, the Universe, and Everything."] = "42";
 }
 
 void Bot::ask_trivia_question() {

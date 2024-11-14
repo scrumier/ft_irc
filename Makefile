@@ -25,10 +25,10 @@ BOTSRCS = $(addprefix $(BOTDIR), \
 BOTOBJS = $(BOTSRCS:$(BOTDIR)%.cpp=$(BOTOBJDIR)%.o)
 BOTDEPS = $(BOTOBJS:.o=.d)
 
-CXX = c++
+CXX = g++
 CXXFLAGS = -Wall -Wextra -Werror -std=c++98
 INC = -I includes/
-BOTINC = -I includes/bot/
+BOTINC = -I includes/ includes/bot/
 
 all: $(NAME)
 	@echo "\033[32mCompiled $(NAME)\033[0m"

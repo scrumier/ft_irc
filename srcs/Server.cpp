@@ -265,6 +265,11 @@ void Server::complete_registration(int client_fd) {
     }
 }
 
+void Server::send_ping(int client_fd) {
+    std::string pingMessage = "PING :ServerCheck\r\n";
+    send(client_fd, pingMessage.c_str(), pingMessage.length(), 0);
+}
+
 /*
  * @brief handle when a new client connects
  * @param client_fd The client file descriptor
@@ -273,14 +278,31 @@ void Server::handle_client_data(size_t i) {
     std::string input = receive_data(poll_fds[i].fd);
 
     if (input.empty()) {
-        if (time(NULL) - clients[poll_fds[i].fd].getTimeToConnect() > 60) {
-            std::cerr << "No data from client " << poll_fds[i].fd << ". Closing connection." << std::endl;
-            close_client(i);
-        }
+        time_t currentTime = time(NULL);
+        Client& client = clients[poll_fds[i].fd]; // Reference to simplify access to client's data
+
+        if (currentTime - client.getLastActivityTime() > 2 && !client.isPingSent()) {
+            std::cerr << "No data from client " << poll_fds[i].fd << " in 2 seconds. Sending PING." << std::endl;
+            send_ping(poll_fds[i].fd);         // Custom function to send a PING command
+            client.setPingSent(true);          // Mark that we've sent a PING
+            client.setLastActivityTime(currentTime); // Reset activity timer
+        } 
+        // else if (client.isPingSent() && currentTime - client.getLastActivityTime() > 4) {
+        //     std::cerr << "No response to PING from client " << poll_fds[i].fd << ". Closing connection." << std::endl;
+        //     close_client(i); // Close connection if no PONG was received
+        // }
     } else {
+        clients[poll_fds[i].fd].setPingSent(false); // Reset PING status if data was received
+        clients[poll_fds[i].fd].setLastActivityTime(time(NULL)); // Update last activity time
+
         std::string command, args;
         parse_command(input, command, args);
-        process_command(poll_fds[i].fd, command, args);
+
+        if (command == "PONG") {
+            clients[poll_fds[i].fd].setPingSent(false); // PONG received, clear PING flag
+        } else {
+            process_command(poll_fds[i].fd, command, args); // Process other commands
+        }
     }
 }
 

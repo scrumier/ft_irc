@@ -1,4 +1,4 @@
-#include "IRCBot.hpp"
+#include "bot/IRCBot.hpp"
 #include <iostream>
 #include <cstring>
 #include <unistd.h>

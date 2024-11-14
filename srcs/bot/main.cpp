@@ -1,4 +1,4 @@
-#include "IRCBot.hpp"
+#include "bot/IRCBot.hpp"
 
 int main(int argc, char* argv[]) {
     if (argc != 6) {
