@@ -51,6 +51,36 @@ Server::~Server() {
     close(server_fd);
 }
 
+#include <csignal>
+#include <iostream>
+
+// Ignore SIGPIPE and set up handlers for SIGINT and SIGQUIT
+void setup_signal_handling() {
+    struct sigaction sa;
+    std::memset(&sa, 0, sizeof(sa));
+    
+    // Ignore SIGPIPE
+    sa.sa_handler = SIG_IGN;
+    if (sigaction(SIGPIPE, &sa, NULL) == -1) {
+        std::cerr << "Error setting SIGPIPE handler" << std::endl;
+        exit(1);
+    }
+
+    // Handle SIGINT (Ctrl+C) and SIGQUIT
+    sa.sa_handler = [](int) {
+        std::cout << "Signal received, shutting down..." << std::endl;
+        // Clean-up tasks here if necessary
+        exit(0); // Exit the program
+    };
+    if (sigaction(SIGINT, &sa, NULL) == -1) {
+        std::cerr << "Error setting SIGINT handler" << std::endl;
+        exit(1);
+    }
+    if (sigaction(SIGQUIT, &sa, NULL) == -1) {
+        std::cerr << "Error setting SIGQUIT handler" << std::endl;
+        exit(1);
+    }
+}
 /*
  * @brief Start the server and handle incoming connections
  * @return void
@@ -58,12 +88,7 @@ Server::~Server() {
 void Server::run() {
     std::cout << "Server is running..." << std::endl;
 
-    // // this migt not work
-    // struct sigaction sa;
-    // sa.sa_handler = SIG_IGN;
-    // sigaction(SIGPIPE, &sa, NULL);
-    // //sigaction(SIGINT, &sa, NULL);
-    // sigaction(SIGQUIT, &sa, NULL);
+    setup_signal_handling();
 
     while (true) {
         int poll_count = poll(&poll_fds[0], poll_fds.size(), -1);
