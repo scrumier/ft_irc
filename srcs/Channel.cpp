@@ -1,6 +1,6 @@
 #include "ft_irc.hpp"
 
-Channel::Channel() : name(""), topic(""), password("") {}
+Channel::Channel() : channelLimit(0), inviteOnly(false), name(""), topic(""), channel_password("") {}
 
 Channel::~Channel() {}
 
@@ -8,11 +8,36 @@ Channel& Channel::operator=(const Channel& other) {
     if (this != &other) {
         name = other.name;
         topic = other.topic;
-        password = other.password;
+        channel_password = other.channel_password;
         clients = other.clients;
         operators = other.operators;
     }
     return *this;
+}
+
+size_t Channel::getClientNumber() const {
+    return clientNumber;
+}
+
+void Channel::removeIfInvitedClient(std::string clientName) {
+    if (invited_clients.find(clientName) != invited_clients.end())
+        invited_clients.erase(clientName);
+}
+
+bool Channel::getInviteOnly() const {
+    return this->inviteOnly;
+}
+
+void Channel::setInviteOnly(bool inviteOnly) {
+    this->inviteOnly = inviteOnly;
+}
+
+size_t Channel::getChannelLimit() const {
+    return this->channelLimit;
+}
+
+void Channel::setChannelLimit(size_t channelLimit) {
+    this->channelLimit = channelLimit;
 }
 
 const std::string& Channel::getName() const {
@@ -44,11 +69,11 @@ void Channel::setTopic(const std::string& new_topic) {
 }
 
 const std::string& Channel::getPassword() const {
-    return password;
+    return channel_password;
 }
 
 void Channel::setPassword(const std::string& password) {
-    this->password = password;
+    this->channel_password = password;
 }
 
 const std::map<std::string, Client*>& Channel::getClients() const {
@@ -69,14 +94,19 @@ std::vector<std::string>& Channel::getOperators() {
 
 void Channel::addClient(const std::string& nickname, Client* client) {
     clients[nickname] = client;
+    clientNumber++;
 }
 
 void Channel::removeClient(const std::string& nickname) {
     clients.erase(nickname);
+    clientNumber--;
 }
 
 void Channel::addOperator(const std::string& nickname) {
-    operators.push_back(nickname);
+    if (isOperator(nickname) == false && clients.find(nickname) != clients.end())
+    {
+        operators.push_back(nickname);
+    }
 }
 
 void Channel::removeOperator(const std::string& nickname) {

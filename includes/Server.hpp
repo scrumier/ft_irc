@@ -48,6 +48,13 @@ private:
     void handle_kick(int client_fd, const std::string& args);
     void handle_invite(int client_fd, const std::string& args);
     void handle_topic(int client_fd, const std::string& args);
+    void handle_mode(int client_fd, const std::string& args);
+
+    void handle_invite_only_mode(int client_fd, Channel& channel, bool adding_mode);
+    void handle_channel_key_mode(int client_fd, Channel& channel, bool adding_mode, const std::string& parameters);
+    void handle_operator_mode(int client_fd, Channel& channel, bool adding_mode, const std::string& parameters);
+
+
 
     bool already_taken_nickname(const std::string& nickname);
 
@@ -60,4 +67,4 @@ public:
     void send_ping(int client_fd);
 };
 
-#endif // SERVER_HPP
+#endif

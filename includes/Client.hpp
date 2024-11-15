@@ -16,7 +16,6 @@ private:
     bool has_nick;
     bool has_user;
 	time_t time_to_connect;
-    bool ping_sent;
     time_t last_activity_time;
 
 public:
@@ -59,9 +58,6 @@ public:
 
 	time_t getTimeToConnect() const;
 	void setTimeToConnect(time_t time_to_connect);
-   
-    bool isPingSent() const;
-    void setPingSent(bool pingSent);
     
     time_t getLastActivityTime() const;
     void setLastActivityTime(time_t lastActivityTime);

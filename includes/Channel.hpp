@@ -4,13 +4,15 @@
 #include "Client.hpp"
 class Channel {
 private:
+    size_t channelLimit;
+    size_t clientNumber;
+    bool inviteOnly;
     std::string name;
     std::string topic;
-    std::string password;
+    std::string channel_password;
     std::map<std::string, Client*> clients;
     std::map<std::string, Client*> invited_clients;
     std::vector<std::string> operators;
-    
 
 public:
     Channel();
@@ -18,8 +20,17 @@ public:
 
     Channel& operator=(const Channel& other);
 
+    size_t getClientNumber() const;
+    void setClientNumber(size_t channelLimit);
+
+    bool getInviteOnly() const;
+    void setInviteOnly(bool inviteOnly);
+
     const std::string& getName() const;
     void setName(const std::string& name);
+
+    size_t getChannelLimit() const;
+    void setChannelLimit(size_t channelLimit);
 
     const std::string& getTopic() const;
     void setTopic(const std::string& topic);
@@ -29,6 +40,8 @@ public:
 
     const std::map<std::string, Client*>& getClients() const;
     std::map<std::string, Client*>& getClients();
+    void removeIfInvitedClient(std::string clientName);
+
 
     const std::vector<std::string>& getOperators() const;
     std::vector<std::string>& getOperators();

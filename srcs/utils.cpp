@@ -38,3 +38,28 @@ bool is_valid_realname_char(char c) {
 bool user_in_channel(const std::map<std::string, Client*>& clients_in_channel, const std::string& nickname) {
     return clients_in_channel.find(nickname) != clients_in_channel.end();
 }
+
+bool isValidModeString(const std::string& flags) {
+    char last_sign = '\0';
+    for (size_t i = 0; i < flags.size(); ++i) {
+        char c = flags[i];
+        
+        if (c == ' ') {
+            return true;
+        } else if (c == '+' || c == '-') {
+            if (last_sign == c) {
+                return false;
+            }
+            last_sign = c;
+        } else if (isalpha(c)) {
+            if (c != 'i' && c != 't' && c != 'k' && c != 'o' && c != 'l') {
+                return false;
+            }
+            last_sign = '\0';
+        } else {
+            return false;
+        }
+    }
+
+    return last_sign == '\0';
+}

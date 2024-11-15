@@ -2,11 +2,11 @@
 
 Client::Client() : nickname(""), username(""), realname(""), authenticated(false), admin(false), fd(-1),
                    registered(false), has_nick(false), has_user(false), time_to_connect(time(NULL)), 
-                   ping_sent(false), last_activity_time(time(NULL)) {}
+                   last_activity_time(time(NULL)) {}
 
 Client::Client(int fd) : nickname(""), username(""), realname(""), authenticated(false), admin(false), fd(fd), 
                          registered(false), has_nick(false), has_user(false), time_to_connect(time(NULL)), 
-                         ping_sent(false), last_activity_time(time(NULL)) {}
+                         last_activity_time(time(NULL)) {}
 
 Client::~Client() {}
 
@@ -132,14 +132,6 @@ time_t Client::getTimeToConnect() const {
 
 void Client::setTimeToConnect(time_t time_to_connect) {
 	this->time_to_connect = time_to_connect;
-}
-
-bool Client::isPingSent() const {
-    return ping_sent;
-}
-
-void Client::setPingSent(bool pingSent) {
-    ping_sent = pingSent;
 }
 
 time_t Client::getLastActivityTime() const {

@@ -9,6 +9,7 @@ SRCS = $(addprefix $(SRCDIR), \
 		Client.cpp \
 		utils.cpp \
 		Channel.cpp \
+		mode_commands.cpp \
 		)
 OBJS = $(SRCS:$(SRCDIR)%.cpp=$(OBJDIR)%.o)
 DEPS = $(OBJS:.o=.d)
@@ -26,9 +27,9 @@ BOTOBJS = $(BOTSRCS:$(BOTDIR)%.cpp=$(BOTOBJDIR)%.o)
 BOTDEPS = $(BOTOBJS:.o=.d)
 
 CXX = g++
-CXXFLAGS = -Wall -Wextra -Werror -std=c++98
+CXXFLAGS = -Wall -Wextra -Werror -std=c++98 -g3
 INC = -I includes/
-BOTINC = -I includes/ -I includes/bot/  # Fix here: separate the two include dirs
+BOTINC = -I includes/ -I includes/bot/
 
 all: $(NAME)
 	@echo "\033[32mCompiled $(NAME)\033[0m"

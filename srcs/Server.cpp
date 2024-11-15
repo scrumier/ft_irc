@@ -51,27 +51,32 @@ Server::~Server() {
     close(server_fd);
 }
 
-#include <csignal>
 #include <iostream>
+#include <cstring>
+#include <csignal>
+#include <cstdlib>
 
-// Ignore SIGPIPE and set up handlers for SIGINT and SIGQUIT
+// Signal handler function
+void signal_handler(int signum) {
+    if (signum == SIGINT || signum == SIGQUIT) {
+        std::cout << "Signal received, shutting down..." << std::endl;
+        exit(0); // Cleanly exit the program
+    }
+}
+
 void setup_signal_handling() {
     struct sigaction sa;
     std::memset(&sa, 0, sizeof(sa));
-    
-    // Ignore SIGPIPE
+
+    // Ignore SIGPIPE to prevent crashes on broken pipe errors
     sa.sa_handler = SIG_IGN;
     if (sigaction(SIGPIPE, &sa, NULL) == -1) {
         std::cerr << "Error setting SIGPIPE handler" << std::endl;
         exit(1);
     }
 
-    // Handle SIGINT (Ctrl+C) and SIGQUIT
-    sa.sa_handler = [](int) {
-        std::cout << "Signal received, shutting down..." << std::endl;
-        // Clean-up tasks here if necessary
-        exit(0); // Exit the program
-    };
+    // Setup signal handling for SIGINT and SIGQUIT
+    sa.sa_handler = signal_handler;
     if (sigaction(SIGINT, &sa, NULL) == -1) {
         std::cerr << "Error setting SIGINT handler" << std::endl;
         exit(1);
@@ -81,6 +86,7 @@ void setup_signal_handling() {
         exit(1);
     }
 }
+
 /*
  * @brief Start the server and handle incoming connections
  * @return void
@@ -91,6 +97,10 @@ void Server::run() {
     setup_signal_handling();
 
     while (true) {
+        for (size_t i = 0; i < poll_fds.size(); ++i) {
+            poll_fds[i].revents = 0;
+        }
+
         int poll_count = poll(&poll_fds[0], poll_fds.size(), -1);
         if (poll_count == -1) {
             std::cerr << "Poll failed" << std::endl;
@@ -98,6 +108,8 @@ void Server::run() {
         }
 
         for (size_t i = 0; i < poll_fds.size(); i++) {
+            if (poll_fds[i].fd < 0) continue;
+            
             try {
                 if (poll_fds[i].fd == server_fd && (poll_fds[i].revents & POLLIN)) {
                     handle_new_connection();
@@ -111,6 +123,7 @@ void Server::run() {
         }
     }
 }
+
 
 /*
  * @brief Add a new client to the server (in the map of clients)
@@ -306,140 +319,15 @@ void Server::handle_client_data(size_t i) {
         time_t currentTime = time(NULL);
         Client& client = clients[poll_fds[i].fd]; // Reference to simplify access to client's data
 
-        if (currentTime - client.getLastActivityTime() > 2 && !client.isPingSent()) {
-            std::cerr << "No data from client " << poll_fds[i].fd << " in 2 seconds. Sending PING." << std::endl;
-            send_ping(poll_fds[i].fd);         // Custom function to send a PING command
-            client.setPingSent(true);          // Mark that we've sent a PING
-            client.setLastActivityTime(currentTime); // Reset activity timer
-        } 
-        // else if (client.isPingSent() && currentTime - client.getLastActivityTime() > 4) {
-        //     std::cerr << "No response to PING from client " << poll_fds[i].fd << ". Closing connection." << std::endl;
-        //     close_client(i); // Close connection if no PONG was received
-        // }
+        if (currentTime - client.getLastActivityTime() > 1) {
+            std::cerr << "No response to PING from client " << poll_fds[i].fd << ". Closing connection." << std::endl;
+            close_client(i); // Close connection if no PONG was received
+        }
     } else {
-        clients[poll_fds[i].fd].setPingSent(false); // Reset PING status if data was received
-        clients[poll_fds[i].fd].setLastActivityTime(time(NULL)); // Update last activity time
-
         std::string command, args;
         parse_command(input, command, args);
-
-        if (command == "PONG") {
-            clients[poll_fds[i].fd].setPingSent(false); // PONG received, clear PING flag
-        } else {
-            process_command(poll_fds[i].fd, command, args); // Process other commands
-        }
+        process_command(poll_fds[i].fd, command, args); // Process other commands
     }
-}
-
-void Server::handle_topic(int client_fd, const std::string& args) {
-    std::string channel_name;
-    std::string topic;
-
-    // Sépare le nom du canal des arguments (sujet)
-    std::istringstream iss(args);
-    iss >> channel_name;  // Le premier mot est le nom du canal
-    std::getline(iss, topic);  // Le reste est le sujet
-
-    // Vérifie si le canal existe
-    if (channels.find(channel_name) == channels.end()) {
-        std::string msg = "No such channel: " + channel_name + "\r\n";
-        send(client_fd, msg.c_str(), msg.size(), 0);
-        return;
-    }
-
-    Channel& channel = channels[channel_name];
-    Client& client = clients[client_fd];
-
-    // Si aucun sujet n'est fourni, afficher le sujet actuel
-    if (topic.empty()) {
-        std::string msg = "Current topic for " + channel_name + ": " + channel.getTopic() + "\r\n";
-        send(client_fd, msg.c_str(), msg.size(), 0);
-        return;
-    }
-
-    // Vérifie si le client est opérateur du canal
-    if (!channel.isOperator(client.getNickname())) {
-        std::string msg = "You are not an operator of this channel.\r\n";
-        send(client_fd, msg.c_str(), msg.size(), 0);
-        return;
-    }
-
-    // Met à jour le sujet du canal
-    channel.setTopic(topic);
-    std::string msg = "Topic for " + channel_name + " set to: " + topic + "\r\n";
-    send(client_fd, msg.c_str(), msg.size(), 0);
-}
-
-void Server::handle_invite(int client_fd, const std::string& args) {
-    std::stringstream ss(args);
-    std::string target_nickname, channel_name;
-
-    ss >> target_nickname >> channel_name;
-
-    if (target_nickname.empty() || channel_name.empty()) {
-        std::string error_msg = "Usage: INVITE <nickname> <channel>\r\n";
-        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
-        return;
-    }
-
-    // Vérifier la taille du string avant d'utiliser substr (sécurité supplémentaire)
-    if (args.size() < target_nickname.size() + channel_name.size()) {
-        std::string error_msg = "Error: invalid command format.\r\n";
-        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
-        return;
-    }
-
-    // Vérification de l'existence du canal
-    if (channels.find(channel_name) == channels.end()) {
-        std::string error_msg = "Channel " + channel_name + " does not exist.\r\n";
-        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
-        return;
-    }
-
-    Channel& channel = channels[channel_name];
-    std::string sender_nickname = clients[client_fd].getNickname();
-
-    // Vérification que l'utilisateur est un opérateur
-    if (!channel.isOperator(sender_nickname)) {
-        std::string error_msg = "You must be a channel operator to invite users.\r\n";
-        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
-        return;
-    }
-
-    // Vérification que l'utilisateur à inviter existe et est connecté
-    Client* target_client = NULL;  // Utilisation de NULL au lieu de nullptr
-    for (std::map<int, Client>::iterator it = clients.begin(); it != clients.end(); ++it) {
-        if (it->second.getNickname() == target_nickname) {
-            target_client = &it->second;
-            break;
-        }
-    }
-
-    if (!target_client) {
-        std::string error_msg = "User " + target_nickname + " not found.\r\n";
-        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
-        return;
-    }
-
-    // Vérification que la cible n'est pas déjà dans le canal
-    if (channel.isClient(target_nickname)) {
-        std::string error_msg = target_nickname + " is already in the channel.\r\n";
-        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
-        return;
-    }
-
-    // Ajout de l'invité à la liste d'invités du canal
-    channel.inviteClient(target_nickname, target_client);
-
-    // Notifier l'utilisateur invité
-    std::string invite_msg = "You have been invited to join channel " + channel_name + " by " + sender_nickname + "\r\n";
-    send(target_client->getFd(), invite_msg.c_str(), invite_msg.size(), 0);
-
-    // Notifier l'opérateur qui a invité
-    std::string confirm_msg = "You have invited " + target_nickname + " to " + channel_name + ".\r\n";
-    send(client_fd, confirm_msg.c_str(), confirm_msg.size(), 0);
-
-    std::cout << "Client " << sender_nickname << " invited " << target_nickname << " to " << channel_name << std::endl;
 }
 
 /*
