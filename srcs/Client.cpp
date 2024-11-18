@@ -1,7 +1,7 @@
 #include "ft_irc.hpp"
 
 Client::Client() : nickname(""), username(""), realname(""), authenticated(false), admin(false), fd(-1),
-                   registered(false), has_nick(false), has_user(false), time_to_connect(time(NULL)), 
+                   registered(true), has_nick(false), has_user(false), time_to_connect(time(NULL)), 
                    last_activity_time(time(NULL)) {}
 
 Client::Client(int fd) : nickname(""), username(""), realname(""), authenticated(false), admin(false), fd(fd), 

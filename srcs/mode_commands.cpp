@@ -49,7 +49,7 @@ void Server::handle_operator_mode(int client_fd, Channel& channel, bool adding_m
             return;
         }
 
-        if (!channel.getClients().find(parameters)) {
+        if (channel.getClients().find(parameters) == channel.getClients().end()) {
             std::string error_msg = ":" + server_name + " 441 " + client_nickname + " " + parameters + " :They aren't on the channel";
             send(client_fd, error_msg.c_str(), error_msg.size(), 0);
             return;
@@ -78,6 +78,61 @@ void Server::handle_operator_mode(int client_fd, Channel& channel, bool adding_m
     }
 }
 
+
+void Server::handle_topic_restriction_mode(int client_fd, Channel& channel, bool adding_mode) {
+    std::string client_nickname = clients[client_fd].getNickname();
+    if (adding_mode) {
+        if (channel.getTmode()) {
+            std::string already_enabled_msg = ":" + server_name + " 324 " + client_nickname + " " + channel.getName() + " +t :topic restriction mode is already enabled\r\n";
+            send(client_fd, already_enabled_msg.c_str(), already_enabled_msg.size(), 0);
+            return;
+        }
+
+        channel.setTmode(true);
+        std::string success_msg = ":" + server_name + " MODE " + channel.getName() + " +t\r\n";
+        send(client_fd, success_msg.c_str(), success_msg.size(), 0);
+        std::cout << "Topic-restriction mode enabled for channel " << channel.getName() << std::endl;
+
+    } else {
+        if (!channel.getTmode()) {
+            std::string already_disabled_msg = ":" + server_name + " 324 " + client_nickname + " " + channel.getName() + " -t :Topic restriction mode is already disabled\r\n";
+            send(client_fd, already_disabled_msg.c_str(), already_disabled_msg.size(), 0);
+            return;
+        }
+
+        channel.setTmode(false);
+        std::string success_msg = ":" + server_name + " MODE " + channel.getName() + " -i\r\n";
+        send(client_fd, success_msg.c_str(), success_msg.size(), 0);
+        std::cout << "Topic restriction mode disabled for channel " << channel.getName() << std::endl;
+    }
+}
+
+void Server::handle_user_limit_mode(int client_fd, Channel& channel, bool adding_mode, const std::string& parameters) {
+    std::string client_nickname = clients[client_fd].getNickname();
+
+    int limit = atoi(parameters.c_str());
+
+    std::string invalid_param_msg = ":" + server_name + " 467 " + client_nickname + " :Invalid channel limit\r\n";
+    std::string already_disabled_msg = ":" + server_name + " 500 " + client_nickname + " :Channel limit already disabled\r\n";
+
+    if (adding_mode) {
+        if (limit > 0 && limit < 1000) {
+            channel.setChannelLimit(static_cast<uint16_t>(limit));
+            std::string success_msg = ":" + server_name + " MODE " + channel.getName() + " +l " + parameters + "\r\n";
+            send(client_fd, success_msg.c_str(), success_msg.size(), 0);
+        } else {
+            send(client_fd, invalid_param_msg.c_str(), invalid_param_msg.size(), 0);
+        }
+    } else {
+        if (channel.getChannelLimit() != 1000) {
+            channel.setChannelLimit(1000);
+            std::string limit_removed_msg = ":" + server_name + " MODE " + channel.getName() + " -l\r\n";
+            send(client_fd, limit_removed_msg.c_str(), limit_removed_msg.size(), 0);
+        } else {
+            send(client_fd, already_disabled_msg.c_str(), already_disabled_msg.size(), 0);
+        }
+    }
+}
 
 
 
@@ -111,7 +166,6 @@ void Server::handle_mode(int client_fd, const std::string& args) {
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
     }
-
     Channel& channel = channels[channel_name];
 
     bool adding_mode = true;
@@ -129,18 +183,18 @@ void Server::handle_mode(int client_fd, const std::string& args) {
                 case 'i':
                     handle_invite_only_mode(client_fd, channel, adding_mode);
                     break;
-                // case 't':
-                //     handle_topic_restriction_mode(client_fd, channel, adding_mode);
-                //     break;
+                case 't':
+                    handle_topic_restriction_mode(client_fd, channel, adding_mode);
+                    break;
                 case 'k':
                     handle_channel_key_mode(client_fd, channel, adding_mode, parameters);
                     break;
                 case 'o':
                     handle_operator_mode(client_fd, channel, adding_mode, parameters);
                     break;
-                // case 'l':
-                //     handle_user_limit_mode(client_fd, channel, adding_mode, parameters);
-                //     break;
+                case 'l':
+                    handle_user_limit_mode(client_fd, channel, adding_mode, parameters);
+                    break;
                 default:
                     std::string error_msg = "Unknown mode flag: " + std::string(1, flag) + "\r\n";
                     send(client_fd, error_msg.c_str(), error_msg.size(), 0);

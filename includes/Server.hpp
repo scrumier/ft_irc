@@ -53,6 +53,8 @@ private:
     void handle_invite_only_mode(int client_fd, Channel& channel, bool adding_mode);
     void handle_channel_key_mode(int client_fd, Channel& channel, bool adding_mode, const std::string& parameters);
     void handle_operator_mode(int client_fd, Channel& channel, bool adding_mode, const std::string& parameters);
+    void handle_topic_restriction_mode(int client_fd, Channel& channel, bool adding_mode);
+    void handle_user_limit_mode(int client_fd, Channel& channel, bool adding_mode, const std::string& parameters);
 
 
 

@@ -1,6 +1,6 @@
 #include "ft_irc.hpp"
 
-Channel::Channel() : channelLimit(0), inviteOnly(false), name(""), topic(""), channel_password("") {}
+Channel::Channel() : channelLimit(1000), clientNumber(0), tmode(false), inviteOnly(false), name(""), topic(""), channel_password("") {}
 
 Channel::~Channel() {}
 
@@ -15,8 +15,12 @@ Channel& Channel::operator=(const Channel& other) {
     return *this;
 }
 
-size_t Channel::getClientNumber() const {
+uint16_t Channel::getClientNumber() const {
     return clientNumber;
+}
+
+void Channel::setClientNumber(uint16_t clientNumber) {
+    this->clientNumber = clientNumber;
 }
 
 void Channel::removeIfInvitedClient(std::string clientName) {
@@ -32,11 +36,19 @@ void Channel::setInviteOnly(bool inviteOnly) {
     this->inviteOnly = inviteOnly;
 }
 
-size_t Channel::getChannelLimit() const {
+bool Channel::getTmode() const {
+    return this->tmode;
+}
+
+void Channel::setTmode(bool tmode) {
+    this->tmode = tmode;
+}
+
+uint16_t Channel::getChannelLimit() const {
     return this->channelLimit;
 }
 
-void Channel::setChannelLimit(size_t channelLimit) {
+void Channel::setChannelLimit(uint16_t channelLimit) {
     this->channelLimit = channelLimit;
 }
 
@@ -93,13 +105,19 @@ std::vector<std::string>& Channel::getOperators() {
 }
 
 void Channel::addClient(const std::string& nickname, Client* client) {
-    clients[nickname] = client;
-    clientNumber++;
+    if (clientNumber < 1000)
+    {
+        clients[nickname] = client;
+        clientNumber++;
+    }
 }
 
 void Channel::removeClient(const std::string& nickname) {
-    clients.erase(nickname);
-    clientNumber--;
+    if (clientNumber > 0)
+    {
+        clients.erase(nickname);
+        clientNumber--;
+    }
 }
 
 void Channel::addOperator(const std::string& nickname) {

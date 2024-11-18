@@ -140,7 +140,7 @@ void Server::handle_join(int client_fd, const std::string& args) {
         password = "";
     }
 
-    if (channel_name.empty()) {
+    if (channel_name.empty() || channel_name == "#") {
         std::string error_msg = ":" + server_name + " 461 JOIN :Not enough parameters\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
@@ -165,7 +165,7 @@ void Server::handle_join(int client_fd, const std::string& args) {
         if (password == channels[channel_name].getPassword()) {
             if (!(channels[channel_name].getInviteOnly() == true \
                     && channels[channel_name].getInvitedClients().find(client_nickname) == channels[channel_name].getInvitedClients().end())
-                    && (channels[channel_name].getClientNumber() < channels[channel_name].getChannelLimit() || channels[channel_name].getChannelLimit() == 0)) {
+                    && (channels[channel_name].getClientNumber() < channels[channel_name].getChannelLimit())) {
                 channels[channel_name].addClient(client_nickname, &clients[client_fd]);
                 channels[channel_name].removeIfInvitedClient(client_nickname);
                 std::string join_msg = ":" + client_nickname + " JOIN " + channel_name + "\r\n";
@@ -434,15 +434,18 @@ void Server::handle_topic(int client_fd, const std::string& args) {
         return;
     }
 
-    if (!channel.isOperator(client.getNickname())) {
+    if (!channel.isOperator(client.getNickname()) && channel.getTmode() == true) {
         std::string msg = "You are not an operator of this channel.\r\n";
         send(client_fd, msg.c_str(), msg.size(), 0);
         return;
     }
 
-    channel.setTopic(topic);
-    std::string msg = "Topic for " + channel_name + " set to: " + topic + "\r\n";
-    send(client_fd, msg.c_str(), msg.size(), 0);
+    if (channel.isOperator(client.getNickname()) || channel.getTmode() == false)
+    {
+        channel.setTopic(topic);
+        std::string msg = "Topic for " + channel_name + " set to: " + topic + "\r\n";
+        send(client_fd, msg.c_str(), msg.size(), 0);
+    }
 }
 
 void Server::handle_invite(int client_fd, const std::string& args) {

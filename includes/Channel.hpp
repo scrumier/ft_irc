@@ -4,8 +4,9 @@
 #include "Client.hpp"
 class Channel {
 private:
-    size_t channelLimit;
-    size_t clientNumber;
+    uint16_t channelLimit;
+    uint16_t clientNumber;
+    bool tmode;
     bool inviteOnly;
     std::string name;
     std::string topic;
@@ -20,17 +21,20 @@ public:
 
     Channel& operator=(const Channel& other);
 
-    size_t getClientNumber() const;
-    void setClientNumber(size_t channelLimit);
+    uint16_t getClientNumber() const;
+    void setClientNumber(uint16_t clientNumber);
 
     bool getInviteOnly() const;
     void setInviteOnly(bool inviteOnly);
 
+    bool getTmode() const;
+    void setTmode(bool tmode);
+
     const std::string& getName() const;
     void setName(const std::string& name);
 
-    size_t getChannelLimit() const;
-    void setChannelLimit(size_t channelLimit);
+    uint16_t getChannelLimit() const;
+    void setChannelLimit(uint16_t channelLimit);
 
     const std::string& getTopic() const;
     void setTopic(const std::string& topic);
