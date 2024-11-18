@@ -21,11 +21,21 @@ public:
 
     Channel& operator=(const Channel& other);
 
+    std::string getNamesList();
+
+    void broadcast(std::string const &send_msg);
+
+    std::string getModes() const;
+
+    void sendNumericRepliesToJoiner(Client& joiner, const std::string& server_name);
+
     uint16_t getClientNumber() const;
     void setClientNumber(uint16_t clientNumber);
 
     bool getInviteOnly() const;
     void setInviteOnly(bool inviteOnly);
+
+    
 
     bool getTmode() const;
     void setTmode(bool tmode);

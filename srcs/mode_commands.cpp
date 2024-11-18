@@ -134,7 +134,18 @@ void Server::handle_user_limit_mode(int client_fd, Channel& channel, bool adding
     }
 }
 
-
+std::string Channel::getModes() const {
+    std::string modes = "+";
+    if (inviteOnly)
+        modes += "i";
+    if (tmode)
+        modes += "t";
+    if (!channel_password.empty())
+        modes += "k";
+    if (channelLimit < 1000)
+        modes += "l";
+    return modes;
+}
 
 void Server::handle_mode(int client_fd, const std::string& args) {
     size_t first_space = args.find(' ');
@@ -167,6 +178,19 @@ void Server::handle_mode(int client_fd, const std::string& args) {
         return;
     }
     Channel& channel = channels[channel_name];
+
+    if (flags.empty()) {
+        std::string current_modes = channel.getModes(); // Assume this function returns a string like "+i +t -k"
+        std::string response = ":" + server_name + " 324 " + clients[client_fd].getNickname() + " " + channel_name + " " + current_modes + "\r\n";
+        send(client_fd, response.c_str(), response.size(), 0);
+        return;
+    }
+
+    if (!isValidModeString(flags)) {
+        std::string error_msg = "Invalid mode string: " + flags + "\r\n";
+        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        return;
+    }
 
     bool adding_mode = true;
     for (size_t i = 0; i < flags.size(); ++i) {

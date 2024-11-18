@@ -15,6 +15,25 @@ Channel& Channel::operator=(const Channel& other) {
     return *this;
 }
 
+void Channel::broadcast(const std::string& send_msg) {
+    for (std::map<std::string, Client*>::iterator it = clients.begin(); it != clients.end(); ++it) {
+        Client* client = it->second;
+        if (client) {
+            int client_fd = client->getFd();
+            send(client_fd, send_msg.c_str(), send_msg.size(), 0);
+        }
+    }
+}
+
+std::string Channel::getNamesList(){
+    std::string result;
+    for (std::map<std::string, Client*>::iterator it = clients.begin(); it != clients.end(); ++it) {
+        result += it->first; // Ajoute le nom du client (clé dans la map)
+        result += '\0'; // Séparateur nul
+    }
+    return result;
+}
+
 uint16_t Channel::getClientNumber() const {
     return clientNumber;
 }

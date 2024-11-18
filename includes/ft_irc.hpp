@@ -22,6 +22,7 @@
 # include <signal.h>
 # include <cerrno>
 # include <sys/wait.h>
+#include <cstdio>
 # define RPL_WELCOME 001
 # define RPL_YOURHOST 002
 # define RPL_CREATED 003

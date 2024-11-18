@@ -6,6 +6,7 @@
 class Server {
 private:
     int server_fd;
+    std::string clientInput;
     std::string password;
     std::vector<struct pollfd> poll_fds;
     std::map<int, Client> clients;
@@ -24,7 +25,7 @@ private:
 
     void handle_new_connection();
     void handle_client_data(size_t i);
-    void close_client(size_t i);
+    void close_client(int i);
 
     void parse_command(const std::string& input, std::string& command, std::string& args);
     void process_command(int client_fd, const std::string& command, const std::string& args);
@@ -49,6 +50,7 @@ private:
     void handle_invite(int client_fd, const std::string& args);
     void handle_topic(int client_fd, const std::string& args);
     void handle_mode(int client_fd, const std::string& args);
+    void handle_who(int client_fd, const std::string& args);
 
     void handle_invite_only_mode(int client_fd, Channel& channel, bool adding_mode);
     void handle_channel_key_mode(int client_fd, Channel& channel, bool adding_mode, const std::string& parameters);

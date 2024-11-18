@@ -60,7 +60,7 @@ Server::~Server() {
 void signal_handler(int signum) {
     if (signum == SIGINT || signum == SIGQUIT) {
         std::cout << "Signal received, shutting down..." << std::endl;
-        exit(0); // Cleanly exit the program
+        exit(0);
     }
 }
 
@@ -68,14 +68,12 @@ void setup_signal_handling() {
     struct sigaction sa;
     std::memset(&sa, 0, sizeof(sa));
 
-    // Ignore SIGPIPE to prevent crashes on broken pipe errors
     sa.sa_handler = SIG_IGN;
     if (sigaction(SIGPIPE, &sa, NULL) == -1) {
         std::cerr << "Error setting SIGPIPE handler" << std::endl;
         exit(1);
     }
 
-    // Setup signal handling for SIGINT and SIGQUIT
     sa.sa_handler = signal_handler;
     if (sigaction(SIGINT, &sa, NULL) == -1) {
         std::cerr << "Error setting SIGINT handler" << std::endl;
@@ -107,14 +105,21 @@ void Server::run() {
             break;
         }
 
-        for (size_t i = 0; i < poll_fds.size(); i++) {
-            if (poll_fds[i].fd < 0) continue;
+        for (size_t i = 0; i < poll_fds.size(); ) {
+            if (poll_fds[i].fd < 0) {
+                ++i;
+                continue;
+            }
             
             try {
                 if (poll_fds[i].fd == server_fd && (poll_fds[i].revents & POLLIN)) {
                     handle_new_connection();
+                    ++i;
                 } else if (poll_fds[i].revents & POLLIN) {
                     handle_client_data(i);
+                    ++i;
+                } else {
+                    ++i;
                 }
             } catch (const std::exception &e) {
                 std::cerr << e.what() << std::endl;
@@ -123,6 +128,7 @@ void Server::run() {
         }
     }
 }
+
 
 
 /*
@@ -200,13 +206,16 @@ std::string Server::receive_data(int client_fd) {
     char buffer[1024];
     int bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
 
-    if (bytes_received <= 0) {
+    if (bytes_received == 0) {
+        throw std::runtime_error("Client disconnected");
+    } else if (bytes_received < 0) {
         return "";
     }
 
     buffer[bytes_received] = '\0';
     return std::string(buffer);
 }
+
 
 /*
  * @brief Parse a command into a command and arguments
@@ -216,6 +225,8 @@ std::string Server::receive_data(int client_fd) {
  * @return void
 */
 void Server::parse_command(const std::string& input, std::string& command, std::string& args) {
+
+
     std::string trimmed_input = my_trim(input);
     size_t space_pos = input.find(' ');
 
@@ -313,43 +324,60 @@ void Server::send_ping(int client_fd) {
  * @param client_fd The client file descriptor
 */
 void Server::handle_client_data(size_t i) {
-    std::string input = receive_data(poll_fds[i].fd);
+    this->clientInput += receive_data(poll_fds[i].fd);
 
-    if (input.empty()) {
-        time_t currentTime = time(NULL);
-        Client& client = clients[poll_fds[i].fd]; // Reference to simplify access to client's data
 
-        if (currentTime - client.getLastActivityTime() > 1) {
-            std::cerr << "No response to PING from client " << poll_fds[i].fd << ". Closing connection." << std::endl;
-            close_client(i); // Close connection if no PONG was received
+    while (!(clientInput.empty())) {
+        std::cout << this->clientInput << std::endl;
+        size_t pos = this->clientInput.find("\n");
+        if (pos == std::string::npos) {
+            break;
         }
-    } else {
+        std::string input = this->clientInput.substr(0, pos);
+
+        this->clientInput.erase(0, (pos + 1));
+
         std::string command, args;
         parse_command(input, command, args);
-        process_command(poll_fds[i].fd, command, args); // Process other commands
+        process_command(poll_fds[i].fd, command, args);
     }
 }
+
 
 /*
  * @brief Close a client connection
  * @param i The index of the client in the poll_fds vector
 */
-void Server::close_client(size_t i) {
+void Server::close_client(int i) {
+    if (i < 0 || static_cast<size_t>(i) >= poll_fds.size()) {
+        return;
+    }
+
     int client_fd = poll_fds[i].fd;
 
-    for (std::map<std::string, Channel>::iterator it = channels.begin(); it != channels.end(); ++it) {
-        it->second.removeClient(clients[client_fd].getNickname());
-    }
-    poll_fds.erase(poll_fds.begin() + i);
-    clients.erase(client_fd);
-    for (std::map<std::string, Channel>::iterator it = channels.begin(); it != channels.end(); ++it) {
-        it->second.removeOperator(clients[client_fd].getNickname());
+    std::map<int, Client>::iterator it = clients.find(client_fd);
+    if (it == clients.end()) {
+        std::cerr << "Error: Client FD " << client_fd << " not found in clients map" << std::endl;
+        return;
     }
 
-    std::cout << "Client " << client_fd << " disconnected" << std::endl;
+    std::string nickname = it->second.getNickname();
+
+    for (std::map<std::string, Channel>::iterator ch_it = channels.begin(); ch_it != channels.end(); ++ch_it) {
+        ch_it->second.removeClient(nickname);
+        ch_it->second.removeOperator(nickname);
+    }
 
     close(client_fd);
+
+    clients.erase(client_fd);
+
+    poll_fds.erase(poll_fds.begin() + i);
+
+    std::cout << "Client " << client_fd << " (" << nickname << ") disconnected" << std::endl;
 }
+
+
 
 bool Server::is_valid_channel_name(const std::string& name) {
     return !name.empty() && name[0] == '#';
