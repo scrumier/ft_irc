@@ -31,17 +31,42 @@ void Server::handle_invite_only_mode(int client_fd, Channel& channel, bool addin
     }
 }
 
-
-
 void Server::handle_channel_key_mode(int client_fd, Channel& channel, bool adding_mode, const std::string& parameters) {
     std::string client_nickname = clients[client_fd].getNickname();
+    std::string current_password = channel.getPassword();
+
 
     if (adding_mode) {
+        if (parameters.empty() == true) {
+            return;
+        }
+        if (current_password.empty() == false) {
+            std::string client_msg = ":" + server_name + " 467 " + client_nickname + " " + channel.getName() + " :Channel key already set\r\n";
+            channel.broadcast(client_msg);
+            return;
+        }
         channel.setPassword(parameters);
+
+        std::string add_msg = ":" + client_nickname + " MODE " + channel.getName() + " +k " + parameters + "\r\n";
+        channel.broadcast(add_msg);
+
     } else {
+        if (parameters.empty() == true) {
+            return;
+        }
+        if (parameters != current_password) {
+            std::string client_msg = ":" + server_name + " 467 " + client_nickname + " " + channel.getName() + " :Channel key already set\r\n";
+            channel.broadcast(client_msg);
+            return;
+        }
+
+        std::string remove_msg = ":" + client_nickname + " MODE " + channel.getName() + " -k" + "\r\n";
+        channel.broadcast(remove_msg);
         channel.setPassword("");
     }
 }
+
+
 
 void Server::handle_operator_mode(int client_fd, Channel& channel, bool adding_mode, const std::string& parameters) {
     std::string client_nickname = clients[client_fd].getNickname();
@@ -133,14 +158,12 @@ void Server::handle_user_limit_mode(int client_fd, Channel& channel, bool adding
         }
     } else {
         if (channel.getChannelLimit() != 100) {
-            std::cout << "limit" << std::endl;
             std::cout << client_fd << std::endl;
             std::string limit_removed_msg = ":" + client_nickname + " MODE " + channel.getName() + " -l\r\n";
             send(client_fd, limit_removed_msg.c_str(), limit_removed_msg.size(), 0);
             std::cout << client_fd << std::endl;
             channel.setChannelLimit(99);
         } else {
-            std::cout << "li45564mit" << std::endl;
             send(client_fd, already_disabled_msg.c_str(), already_disabled_msg.size(), 0);
         }
     }

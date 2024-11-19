@@ -26,8 +26,8 @@ BOTSRCS = $(addprefix $(BOTDIR), \
 BOTOBJS = $(BOTSRCS:$(BOTDIR)%.cpp=$(BOTOBJDIR)%.o)
 BOTDEPS = $(BOTOBJS:.o=.d)
 
-CXX = g++
-CXXFLAGS = -Wall -Wextra -Werror -std=c++98 -g3
+CXX = c++
+CXXFLAGS = -Wall -Wextra -Werror -std=c++98
 INC = -I includes/
 BOTINC = -I includes/ -I includes/bot/
 
