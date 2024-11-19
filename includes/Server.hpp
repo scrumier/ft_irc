@@ -58,8 +58,6 @@ private:
     void handle_topic_restriction_mode(int client_fd, Channel& channel, bool adding_mode);
     void handle_user_limit_mode(int client_fd, Channel& channel, bool adding_mode, const std::string& parameters);
 
-
-
     bool already_taken_nickname(const std::string& nickname);
 
 public:

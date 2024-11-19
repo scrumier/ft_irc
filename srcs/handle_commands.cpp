@@ -104,10 +104,22 @@ void Server::handle_user(int client_fd, const std::string& args) {
  * @return void
 */
 void Server::handle_part(int client_fd, const std::string& args) {
-    std::string channel_name = my_trim(args);
+    size_t space_pos = args.find(' ');
+    std::string channel_name;
+    std::string reason = "Leaving"; // Default reason if none is provided.
+
+    if (space_pos != std::string::npos) {
+        channel_name = my_trim(args.substr(0, space_pos));
+        std::string rest = my_trim(args.substr(space_pos + 1));
+        if (!rest.empty() && rest[0] == ':') {
+            reason = rest.substr(1); // Extract reason without the leading ':'
+        }
+    } else {
+        channel_name = my_trim(args);
+    }
 
     if (channel_name.empty()) {
-        std::string error_msg = ":" + server_name + " 461 PART :Not enough parameters\r\n";
+        std::string error_msg = ":" + server_name + " 461 " + clients[client_fd].getNickname() + " PART :Not enough parameters\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
     }
@@ -135,15 +147,18 @@ void Server::handle_part(int client_fd, const std::string& args) {
     }
 
     channel.removeClient(client_nickname);
-    std::string part_msg = ":" + client_nickname + " PART " + channel_name + "\r\n";
+    std::string part_msg = ":" + client_nickname + " PART " + channel_name + " :" + reason + "\r\n";
+    channel.broadcast(part_msg);
     send(client_fd, part_msg.c_str(), part_msg.size(), 0);
-    std::cout << "Client " << clients[client_fd].getNickname() << " left channel " << channel_name << std::endl;
+    std::cout << "Client " << clients[client_fd].getNickname() << " left channel " << channel_name << " with reason: " << reason << std::endl;
+    channel.updateList(client_fd, server_name, client_nickname);
 
     if (channel.getClientNumber() == 0) {
         channels.erase(channel_name);
         std::cout << "Channel " << channel_name << " deleted because it is empty.\n";
     }
 }
+
 
 void Channel::sendNumericRepliesToJoiner(Client& joiner, const std::string& server_name) {
     int client_fd = joiner.getFd();
@@ -195,44 +210,39 @@ void Server::handle_join(int client_fd, const std::string& args) {
         return;
     }
 
-    // Validate channel name
     if (!is_valid_channel_name(channel_name)) {
         std::string error_msg = ":" + server_name + " 403 " + clients[client_fd].getNickname() + " " + channel_name + " :No such channel\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
     }
 
-    // Create channel if it doesn't exist
     if (channels.find(channel_name) == channels.end()) {
         channels[channel_name] = Channel();
         channels[channel_name].setPassword(password);
+        channels[channel_name].setName(channel_name);
     }
 
     Channel& channel = channels[channel_name];
     std::string client_nickname = clients[client_fd].getNickname();
 
-    // Check if the client is already in the channel
     if (channel.getClients().find(client_nickname) != channel.getClients().end()) {
         std::string already_joined_msg = ":" + server_name + " 443 " + client_nickname + " " + channel_name + " :is already on channel\r\n";
         send(client_fd, already_joined_msg.c_str(), already_joined_msg.size(), 0);
         return;
     }
 
-    // Check for channel password
     if (!channel.getPassword().empty() && password != channel.getPassword()) {
         std::string error_msg = ":" + server_name + " 475 " + channel_name + " :Cannot join channel (bad key)\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
     }
 
-    // Check for invite-only channel
     if (channel.getInviteOnly() && !channel.isInvited(client_nickname)) {
         std::string error_msg = ":" + server_name + " 473 " + channel_name + " :Cannot join channel (invite only)\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
     }
 
-    // Check for channel limit
     if (channel.getClientNumber() >= channel.getChannelLimit()) {
         std::string error_msg = ":" + server_name + " 471 " + channel_name + " :Cannot join channel (channel is full)\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
@@ -252,21 +262,15 @@ void Server::handle_join(int client_fd, const std::string& args) {
         channel.addOperator(client_nickname);
     }
 
+
     // Send topic if it exists
     if (!channel.getTopic().empty()) {
         std::string topic_msg = ":" + server_name + " 332 " + client_nickname + " " + channel_name + " :" + channel.getTopic() + "\r\n";
         send(client_fd, topic_msg.c_str(), topic_msg.size(), 0);
     }
 
-    // Send the list of users in the channel (RPL_NAMREPLY and RPL_ENDOFNAMES)
-    std::string names_list = channel.getNamesList();
-    std::string names_reply = ":" + server_name + " 353 " + client_nickname + " = " + channel_name + " :" + names_list + "\r\n";
-    send(client_fd, names_reply.c_str(), names_reply.size(), 0);
-
-    std::string end_names_reply = ":" + server_name + " 366 " + client_nickname + " " + channel_name + " :End of /NAMES list\r\n";
-    send(client_fd, end_names_reply.c_str(), end_names_reply.size(), 0);
-
     std::cout << "Client " << client_nickname << " joined channel " << channel_name << std::endl;
+    channel.updateList(client_fd, server_name, client_nickname);
 }
 
 
@@ -379,8 +383,8 @@ void Server::handle_pass(int client_fd, const std::string& args) {
  * @return void
 */
 void Server::handle_quit(int client_fd, const std::string& args) {
-    std::string quit_msg = clients[client_fd].getNickname() + " has quit";
-    
+    std::string client_nickname = clients[client_fd].getNickname();
+    std::string quit_msg = client_nickname + " has quit";
     if (!args.empty()) {
         quit_msg += " (" + args + ")";
     }
@@ -390,13 +394,14 @@ void Server::handle_quit(int client_fd, const std::string& args) {
         Channel& channel = it->second;
         std::map<std::string, Client*>& clients_in_channel = channel.getClients();
         
+        channel.broadcast(quit_msg);
         std::map<std::string, Client*>::iterator client_it = clients_in_channel.find(clients[client_fd].getNickname());
         if (client_it != clients_in_channel.end()) {
             clients_in_channel.erase(client_it);
         }
+        channel.updateList(client_fd, server_name, client_nickname);
     }
 
-    std::cout << "Client " << client_fd << " quit with message: " << quit_msg << std::endl;
     close_client(client_fd);
 }
 
@@ -463,11 +468,11 @@ void Server::handle_kick(int client_fd, const std::string& args) {
     }
 
     Channel& channel = channels[channel_name];
-    
-    std::string kicker_nickname = clients[client_fd].getNickname();
-    if (!channel.isOperator(kicker_nickname)) {
-        std::string error_msg = "You are not an operator in channel " + channel_name + ".\r\n";
-        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+    std::string sender_nickname = clients[client_fd].getNickname();
+
+    if (!channel.isOperator(sender_nickname)) {
+        std::string notOperator = ":" + server_name + " 482 " + sender_nickname + " " + channel.getName() + " :You're not channel operator\r\n";
+        send(client_fd, notOperator.c_str(), notOperator.size(), 0);
         return;
     }
     
@@ -480,17 +485,24 @@ void Server::handle_kick(int client_fd, const std::string& args) {
     Client* target_client = channel.getClients()[target_nickname];
     int target_fd = target_client->getFd();
 
-    std::string kick_msg = kicker_nickname + " KICK " + channel_name + " " + target_nickname + " :" + reason + "\r\n";
+    std::string kick_msg = ":" + sender_nickname + " KICK " + channel_name + " " + target_nickname + " :" + reason + "\r\n";
     std::map<std::string, Client*>& clients_in_channel = channel.getClients();
     for (std::map<std::string, Client*>::iterator it = clients_in_channel.begin(); it != clients_in_channel.end(); ++it) {
-        send(it->second->getFd(), kick_msg.c_str(), kick_msg.size(), 0);
+        if (send(it->second->getFd(), kick_msg.c_str(), kick_msg.size(), 0) < 0) {
+            perror("send");
+        }
     }
 
     channel.removeClient(target_nickname);
 
-    std::string user_kicked_msg = "You have been kicked from " + channel_name + " by " + kicker_nickname + " :" + reason + "\r\n";
-    send(target_fd, user_kicked_msg.c_str(), user_kicked_msg.size(), 0);
+    std::string user_kicked_msg = "You have been kicked from " + channel_name + " by " + sender_nickname + " :" + reason + "\r\n";
+    if (send(target_fd, user_kicked_msg.c_str(), user_kicked_msg.size(), 0) < 0) {
+        perror("send");
+    }
+
+    std::cout << "Client " << target_nickname << " was kicked from " << channel_name << " by " << sender_nickname << " with reason: " << reason << std::endl;
 }
+
 
 void Server::handle_topic(int client_fd, const std::string& args) {
     std::string channel_name;
@@ -515,9 +527,11 @@ void Server::handle_topic(int client_fd, const std::string& args) {
         return;
     }
 
-    if (!channel.isOperator(client.getNickname()) && channel.getTmode() == true) {
-        std::string msg = "You are not an operator of this channel.\r\n";
-        send(client_fd, msg.c_str(), msg.size(), 0);
+    std::string sender_nickname = clients[client_fd].getNickname();
+
+    if (!channel.isOperator(sender_nickname)) {
+        std::string notOperator = ":" + server_name + " 482 " + sender_nickname + " " + channel.getName() + " :You're not channel operator\r\n";
+        send(client_fd, notOperator.c_str(), notOperator.size(), 0);
         return;
     }
 
@@ -557,8 +571,8 @@ void Server::handle_invite(int client_fd, const std::string& args) {
     std::string sender_nickname = clients[client_fd].getNickname();
 
     if (!channel.isOperator(sender_nickname)) {
-        std::string error_msg = "You must be a channel operator to invite users.\r\n";
-        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        std::string notOperator = ":" + server_name + " 482 " + sender_nickname + " " + channel.getName() + " :You're not channel operator\r\n";
+        send(client_fd, notOperator.c_str(), notOperator.size(), 0);
         return;
     }
 

@@ -2,6 +2,7 @@
 #define CHANNEL_HPP
 
 #include "Client.hpp"
+
 class Channel {
 private:
     uint16_t channelLimit;
@@ -22,6 +23,7 @@ public:
     Channel& operator=(const Channel& other);
 
     std::string getNamesList();
+    void updateList(int client_fd, std::string server_name, std::string nickname);
 
     void broadcast(std::string const &send_msg);
 

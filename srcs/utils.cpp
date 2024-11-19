@@ -63,3 +63,10 @@ bool isValidModeString(const std::string& flags) {
 
     return last_sign == '\0';
 }
+
+void Channel::updateList(int client_fd, std::string server_name, std::string client_nickname) {
+    std::string names_list = getNamesList();
+    std::cout << "Generated names list for channel " << name << ": " << names_list << std::endl;
+    std::string names_reply = ":" + server_name + " 353 " + client_nickname + " = " + name + " :" + names_list + "\r\n";
+    send(client_fd, names_reply.c_str(), names_reply.size(), 0);
+}

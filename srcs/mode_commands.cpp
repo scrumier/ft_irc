@@ -11,9 +11,10 @@ void Server::handle_invite_only_mode(int client_fd, Channel& channel, bool addin
         }
 
         channel.setInviteOnly(true);
-        std::string success_msg = ":" + server_name + " MODE " + channel.getName() + " +i\r\n";
-        send(client_fd, success_msg.c_str(), success_msg.size(), 0);
-        std::cout << "Invite-only mode enabled for channel " << channel.getName() << std::endl;
+        std::string mode_msg = ":" + client_nickname + " MODE " + channel.getName() + " +i\r\n";
+        channel.broadcast(mode_msg);
+
+        std::cout << "Invite-only mode enabled for channel " << channel.getName() << " by " << client_nickname << std::endl;
 
     } else {
         if (!channel.getInviteOnly()) {
@@ -23,11 +24,14 @@ void Server::handle_invite_only_mode(int client_fd, Channel& channel, bool addin
         }
 
         channel.setInviteOnly(false);
-        std::string success_msg = ":" + server_name + " MODE " + channel.getName() + " -i\r\n";
-        send(client_fd, success_msg.c_str(), success_msg.size(), 0);
-        std::cout << "Invite-only mode disabled for channel " << channel.getName() << std::endl;
+        std::string mode_msg = ":" + client_nickname + " MODE " + channel.getName() + " -i\r\n";
+        channel.broadcast(mode_msg);
+
+        std::cout << "Invite-only mode disabled for channel " << channel.getName() << " by " << client_nickname << std::endl;
     }
 }
+
+
 
 void Server::handle_channel_key_mode(int client_fd, Channel& channel, bool adding_mode, const std::string& parameters) {
     std::string client_nickname = clients[client_fd].getNickname();
@@ -112,23 +116,31 @@ void Server::handle_user_limit_mode(int client_fd, Channel& channel, bool adding
 
     int limit = atoi(parameters.c_str());
 
+    std::cout << limit << std::endl;
+
     std::string invalid_param_msg = ":" + server_name + " 467 " + client_nickname + " :Invalid channel limit\r\n";
     std::string already_disabled_msg = ":" + server_name + " 500 " + client_nickname + " :Channel limit already disabled\r\n";
 
     if (adding_mode) {
-        if (limit > 0 && limit < 1000) {
-            channel.setChannelLimit(static_cast<uint16_t>(limit));
-            std::string success_msg = ":" + server_name + " MODE " + channel.getName() + " +l " + parameters + "\r\n";
+        if (limit >= 10 && limit < 100) {
+            std::string success_msg = ":" + client_nickname + " MODE " + channel.getName() + " +l " + parameters + "\r\n";
+            std::cout << success_msg<< std::endl;
             send(client_fd, success_msg.c_str(), success_msg.size(), 0);
+            std::cout << client_fd << std::endl;
+            channel.setChannelLimit(limit);
         } else {
             send(client_fd, invalid_param_msg.c_str(), invalid_param_msg.size(), 0);
         }
     } else {
-        if (channel.getChannelLimit() != 1000) {
-            channel.setChannelLimit(1000);
-            std::string limit_removed_msg = ":" + server_name + " MODE " + channel.getName() + " -l\r\n";
+        if (channel.getChannelLimit() != 100) {
+            std::cout << "limit" << std::endl;
+            std::cout << client_fd << std::endl;
+            std::string limit_removed_msg = ":" + client_nickname + " MODE " + channel.getName() + " -l\r\n";
             send(client_fd, limit_removed_msg.c_str(), limit_removed_msg.size(), 0);
+            std::cout << client_fd << std::endl;
+            channel.setChannelLimit(99);
         } else {
+            std::cout << "li45564mit" << std::endl;
             send(client_fd, already_disabled_msg.c_str(), already_disabled_msg.size(), 0);
         }
     }
@@ -142,7 +154,7 @@ std::string Channel::getModes() const {
         modes += "t";
     if (!channel_password.empty())
         modes += "k";
-    if (channelLimit < 1000)
+    if (channelLimit < 100)
         modes += "l";
     return modes;
 }
@@ -150,21 +162,26 @@ std::string Channel::getModes() const {
 void Server::handle_mode(int client_fd, const std::string& args) {
     size_t first_space = args.find(' ');
     size_t second_space = args.find(' ', first_space + 1);
-    
+    std::string client_nickname = clients[client_fd].getNickname();
+
     if (first_space == std::string::npos) {
-        std::string error_msg = "Usage: /MODE <channel> <flags> [parameters]\r\n";
-        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        std::string channel_name = my_trim(args);
+        if (channels.find(channel_name) == channels.end()) {
+            std::string error_msg = "Channel " + channel_name + " does not exist.\r\n";
+            send(client_fd, error_msg.c_str(), error_msg.size(), 0);
+        } else {
+            Channel& channel = channels[channel_name];
+            std::string current_modes = channel.getModes();
+            std::cout << "User requested current modes for channel: " << channel_name << std::endl;
+            std::string response = ":" + server_name + " 324 " + clients[client_fd].getNickname() + " " + channel_name + " " + current_modes + "\r\n";
+            send(client_fd, response.c_str(), response.size(), 0);
+        }
         return;
     }
     
     std::string channel_name = my_trim(args.substr(0, first_space));
-    std::string flags = my_trim(args.substr(first_space + 1));
+    std::string flags = my_trim(args.substr(first_space + 1, second_space - first_space - 1));
     std::string parameters;
-    if (second_space != std::string::npos) {
-        parameters = my_trim(args.substr(second_space + 1));
-    } else {
-        parameters = "";
-    }
 
     if (channels.find(channel_name) == channels.end()) {
         std::string error_msg = "Channel " + channel_name + " does not exist.\r\n";
@@ -172,15 +189,22 @@ void Server::handle_mode(int client_fd, const std::string& args) {
         return;
     }
 
-    if (!isValidModeString(flags)) {
-        std::string error_msg = "Invalid mode string: " + flags + "\r\n";
-        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
-        return;
-    }
     Channel& channel = channels[channel_name];
 
-    if (flags.empty()) {
-        std::string current_modes = channel.getModes(); // Assume this function returns a string like "+i +t -k"
+    std::string nickName = clients[client_fd].getNickname();
+    if (!channel.isOperator(nickName)) {
+        std::string notOperator = ":" + server_name + " 482 " + nickName + " " + channel.getName() + " :You're not channel operator\r\n";
+        send(client_fd, notOperator.c_str(), notOperator.size(), 0);
+        return;
+    }
+
+    if (second_space != std::string::npos) {
+        parameters = my_trim(args.substr(second_space + 1));
+    }
+
+    if (second_space == std::string::npos && flags.empty()) {
+        std::string current_modes = channel.getModes();
+        std::cout << "User requested current modes for channel: " << channel_name << std::endl;
         std::string response = ":" + server_name + " 324 " + clients[client_fd].getNickname() + " " + channel_name + " " + current_modes + "\r\n";
         send(client_fd, response.c_str(), response.size(), 0);
         return;
@@ -192,12 +216,15 @@ void Server::handle_mode(int client_fd, const std::string& args) {
         return;
     }
 
+    std::cout << "Mode change requested: " << flags << " on channel " << channel_name 
+              << " with parameters: " << parameters << std::endl;
+
     bool adding_mode = true;
     for (size_t i = 0; i < flags.size(); ++i) {
         char flag = flags[i];
 
         if (flag == ' ') {
-            return;
+            break;
         } else if (flag == '+') {
             adding_mode = true;
         } else if (flag == '-') {
@@ -226,4 +253,5 @@ void Server::handle_mode(int client_fd, const std::string& args) {
             }
         }
     }
+    channel.updateList(client_fd, server_name, client_nickname);
 }
