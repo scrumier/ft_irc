@@ -34,10 +34,13 @@
 
 # include "Server.hpp"
 
+extern Server* g_server_instance;
+
 std::string intToString(int number);
 bool is_valid_nickname_char(char c);
 bool is_valid_realname_char(char c);
 bool user_in_channel(const std::map<std::string, Client*>& clients_in_channel, const std::string& nickname);
 bool isValidModeString(const std::string& flags);
+void setup_signal_handling();
 
 #endif

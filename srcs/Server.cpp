@@ -1,5 +1,6 @@
 #include "ft_irc.hpp"
 
+Server* g_server_instance = NULL;
 
 /*
  * @brief Init all the data and start the server
@@ -48,21 +49,28 @@ Server::Server(int port, const std::string& password) : password(password) {
 }
 
 Server::~Server() {
+    for (size_t i = 0; i < poll_fds.size(); ++i) {
+        if (poll_fds[i].fd != server_fd) {
+            close(poll_fds[i].fd);
+        }
+    }
     close(server_fd);
 }
-
-#include <iostream>
-#include <cstring>
-#include <csignal>
-#include <cstdlib>
 
 // Signal handler function
 void signal_handler(int signum) {
     if (signum == SIGINT || signum == SIGQUIT) {
-        std::cout << "Signal received, shutting down..." << std::endl;
+        std::cout << "\nSignal received (" << signum << "), shutting down..." << std::endl;
+
+        if (g_server_instance != NULL) {
+            delete g_server_instance;
+            g_server_instance = NULL;
+        }
+
         exit(0);
     }
 }
+
 
 void setup_signal_handling() {
     struct sigaction sa;
@@ -324,25 +332,24 @@ void Server::send_ping(int client_fd) {
  * @param client_fd The client file descriptor
 */
 void Server::handle_client_data(size_t i) {
-    this->clientInput += receive_data(poll_fds[i].fd);
+    int client_fd = poll_fds[i].fd;
+    try {
+        this->clientInput += receive_data(client_fd);
 
+        size_t pos;
+        while ((pos = this->clientInput.find("\n")) != std::string::npos) {
+            std::string input = this->clientInput.substr(0, pos);
+            this->clientInput.erase(0, pos + 1);
 
-    while (!(clientInput.empty())) {
-        std::cout << this->clientInput << std::endl;
-        size_t pos = this->clientInput.find("\n");
-        if (pos == std::string::npos) {
-            break;
+            std::string command, args;
+            parse_command(input, command, args);
+            process_command(client_fd, command, args);
         }
-        std::string input = this->clientInput.substr(0, pos);
-
-        this->clientInput.erase(0, (pos + 1));
-
-        std::string command, args;
-        parse_command(input, command, args);
-        process_command(poll_fds[i].fd, command, args);
+    } catch (const std::exception& e) {
+        std::cerr << "Error handling client " << client_fd << ": " << e.what() << std::endl;
+        close_client(i);
     }
 }
-
 
 /*
  * @brief Close a client connection
