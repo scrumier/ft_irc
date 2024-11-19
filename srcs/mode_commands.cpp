@@ -59,7 +59,7 @@ void Server::handle_operator_mode(int client_fd, Channel& channel, bool adding_m
             return;
         }
 
-        channel.addOperator(parameters);
+        channel.addOperator(parameters, server_name);
 
         std::string promotion_msg = ":" + server_name + " 381 " + client_nickname + " " + parameters + " :User is now an operator";
         send(client_fd, promotion_msg.c_str(), promotion_msg.size(), 0);
@@ -73,7 +73,7 @@ void Server::handle_operator_mode(int client_fd, Channel& channel, bool adding_m
             return;
         }
 
-        channel.removeOperator(parameters);
+        channel.removeOperator(parameters, server_name);
 
         std::string unpromotion_msg = ":" + server_name + " 381 " + client_nickname + " " + parameters + " :User is no longer an operator";
         send(client_fd, unpromotion_msg.c_str(), unpromotion_msg.size(), 0);
@@ -93,7 +93,7 @@ void Server::handle_topic_restriction_mode(int client_fd, Channel& channel, bool
         }
 
         channel.setTmode(true);
-        std::string success_msg = ":" + server_name + " MODE " + channel.getName() + " +t\r\n";
+        std::string success_msg = ":" + client_nickname + " MODE " + channel.getName() + " +t\r\n";
         send(client_fd, success_msg.c_str(), success_msg.size(), 0);
         std::cout << "Topic-restriction mode enabled for channel " << channel.getName() << std::endl;
 
@@ -105,7 +105,7 @@ void Server::handle_topic_restriction_mode(int client_fd, Channel& channel, bool
         }
 
         channel.setTmode(false);
-        std::string success_msg = ":" + server_name + " MODE " + channel.getName() + " -i\r\n";
+        std::string success_msg = ":" + client_nickname + " MODE " + channel.getName() + " -t\r\n";
         send(client_fd, success_msg.c_str(), success_msg.size(), 0);
         std::cout << "Topic restriction mode disabled for channel " << channel.getName() << std::endl;
     }

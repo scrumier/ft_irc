@@ -106,13 +106,13 @@ void Server::handle_user(int client_fd, const std::string& args) {
 void Server::handle_part(int client_fd, const std::string& args) {
     size_t space_pos = args.find(' ');
     std::string channel_name;
-    std::string reason = "Leaving"; // Default reason if none is provided.
+    std::string reason = "Leaving";
 
     if (space_pos != std::string::npos) {
         channel_name = my_trim(args.substr(0, space_pos));
         std::string rest = my_trim(args.substr(space_pos + 1));
         if (!rest.empty() && rest[0] == ':') {
-            reason = rest.substr(1); // Extract reason without the leading ':'
+            reason = rest.substr(1);
         }
     } else {
         channel_name = my_trim(args);
@@ -146,11 +146,21 @@ void Server::handle_part(int client_fd, const std::string& args) {
         return;
     }
 
-    channel.removeClient(client_nickname);
     std::string part_msg = ":" + client_nickname + " PART " + channel_name + " :" + reason + "\r\n";
     channel.broadcast(part_msg);
     send(client_fd, part_msg.c_str(), part_msg.size(), 0);
-    std::cout << "Client " << clients[client_fd].getNickname() << " left channel " << channel_name << " with reason: " << reason << std::endl;
+    channel.removeClient(client_nickname);
+
+    if (channel.isOperator(client_nickname)) {
+        channel.removeOperator(client_nickname, server_name);
+        if (!clients_in_channel.empty()) {
+            std::string new_operator = clients_in_channel.begin()->first;
+            channel.addOperator(new_operator, server_name);
+            std::cout << "Assigned " << new_operator << " as operator for channel " << channel_name << std::endl;
+        }
+    }
+
+    std::cout << "Client " << client_nickname << " left channel " << channel_name << " with reason: " << reason << std::endl;
     channel.updateList(client_fd, server_name, client_nickname);
 
     if (channel.getClientNumber() == 0) {
@@ -259,7 +269,7 @@ void Server::handle_join(int client_fd, const std::string& args) {
 
     // Make the first client an operator
     if (channel.getClientNumber() == 1) {
-        channel.addOperator(client_nickname);
+        channel.addOperator(client_nickname, server_name);
     }
 
 
@@ -443,7 +453,7 @@ void Server::handle_kick(int client_fd, const std::string& args) {
     size_t first_space = args.find(' ');
     size_t second_space = args.find(' ', first_space + 1);
     
-    if (first_space == std::string::npos || second_space == std::string::npos) {
+    if (first_space == std::string::npos) {
         std::string error_msg = "Usage: /KICK <channel> <user> :<reason>\r\n";
         send(client_fd, error_msg.c_str(), error_msg.size(), 0);
         return;
@@ -454,9 +464,7 @@ void Server::handle_kick(int client_fd, const std::string& args) {
     std::string reason = my_trim(args.substr(second_space + 1));
     
     if (reason.empty() || reason[0] != ':') {
-        std::string error_msg = "Invalid KICK format. Reason must start with ':'\r\n";
-        send(client_fd, error_msg.c_str(), error_msg.size(), 0);
-        return;
+        reason = " " + target_nickname;
     }
 
     reason = reason.substr(1);
@@ -512,36 +520,44 @@ void Server::handle_topic(int client_fd, const std::string& args) {
     iss >> channel_name;
     std::getline(iss, topic);
 
+    topic = my_trim(topic);
+    if (!topic.empty() && topic[0] == ':') {
+        topic = topic.substr(1);
+    }
+
     if (channels.find(channel_name) == channels.end()) {
-        std::string msg = "No such channel: " + channel_name + "\r\n";
+        std::string msg = ":" + server_name + " 403 " + clients[client_fd].getNickname() + " " + channel_name + " :No such channel\r\n";
         send(client_fd, msg.c_str(), msg.size(), 0);
         return;
     }
 
     Channel& channel = channels[channel_name];
-    Client& client = clients[client_fd];
+    std::string sender_nickname = clients[client_fd].getNickname();
 
     if (topic.empty()) {
-        std::string msg = "Current topic for " + channel_name + ": " + channel.getTopic() + "\r\n";
-        send(client_fd, msg.c_str(), msg.size(), 0);
+        if (channel.getTopic().empty()) {
+            std::string msg = ":" + server_name + " 331 " + sender_nickname + " " + channel_name + " :No topic is set\r\n";
+            send(client_fd, msg.c_str(), msg.size(), 0);
+        } else {
+            std::string msg = ":" + server_name + " 332 " + sender_nickname + " " + channel_name + " :" + channel.getTopic() + "\r\n";
+            send(client_fd, msg.c_str(), msg.size(), 0);
+        }
         return;
     }
 
-    std::string sender_nickname = clients[client_fd].getNickname();
-
-    if (!channel.isOperator(sender_nickname)) {
-        std::string notOperator = ":" + server_name + " 482 " + sender_nickname + " " + channel.getName() + " :You're not channel operator\r\n";
+    if (channel.getTmode() && !channel.isOperator(sender_nickname)) {
+        std::string notOperator = ":" + server_name + " 482 " + sender_nickname + " " + channel_name + " :You're not channel operator\r\n";
         send(client_fd, notOperator.c_str(), notOperator.size(), 0);
         return;
     }
 
-    if (channel.isOperator(client.getNickname()) || channel.getTmode() == false)
-    {
-        channel.setTopic(topic);
-        std::string msg = "Topic for " + channel_name + " set to: " + topic + "\r\n";
-        send(client_fd, msg.c_str(), msg.size(), 0);
-    }
+    channel.setTopic(topic);
+    std::string topic_msg = ":" + sender_nickname + "!" + clients[client_fd].getUsername() + " TOPIC " + channel_name + " :" + topic + "\r\n";
+    channel.broadcast(topic_msg);
+
+    std::cout << "Topic for channel " << channel_name << " set to: " << topic << " by " << sender_nickname << std::endl;
 }
+
 
 void Server::handle_invite(int client_fd, const std::string& args) {
     std::stringstream ss(args);

@@ -64,9 +64,26 @@ bool isValidModeString(const std::string& flags) {
     return last_sign == '\0';
 }
 
+#include <algorithm>
+
 void Channel::updateList(int client_fd, std::string server_name, std::string client_nickname) {
+    std::vector<std::string>::iterator it_ope = std::find(operators.begin(), operators.end(), client_nickname);
+    std::map<std::string, Client*>::iterator it_client = clients.find(client_nickname);   
+    if (it_ope != operators.end() && it_client == clients.end()) {
+        operators.erase(it_ope);
+        std::cout << "Removed " << client_nickname << " from operators for channel " << name << std::endl;
+    }
+
+    if (operators.empty() && !clients.empty()) {
+        std::string new_operator = clients.begin()->first;
+        operators.push_back(new_operator);
+        std::cout << "Assigned " << new_operator << " as operator for channel " << name << std::endl;
+    }
+
     std::string names_list = getNamesList();
     std::cout << "Generated names list for channel " << name << ": " << names_list << std::endl;
+
     std::string names_reply = ":" + server_name + " 353 " + client_nickname + " = " + name + " :" + names_list + "\r\n";
     send(client_fd, names_reply.c_str(), names_reply.size(), 0);
 }
+

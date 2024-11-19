@@ -365,7 +365,7 @@ void Server::close_client(int i) {
 
     for (std::map<std::string, Channel>::iterator ch_it = channels.begin(); ch_it != channels.end(); ++ch_it) {
         ch_it->second.removeClient(nickname);
-        ch_it->second.removeOperator(nickname);
+        ch_it->second.removeOperator(nickname, server_name);
     }
 
     close(client_fd);

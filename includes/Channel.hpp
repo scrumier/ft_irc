@@ -69,8 +69,8 @@ public:
     void addClient(const std::string& nickname, Client* client);
     void removeClient(const std::string& nickname);
 
-    void addOperator(const std::string& nickname);
-    void removeOperator(const std::string& nickname);
+    void addOperator(const std::string& nickname, std::string server_name);
+    void removeOperator(const std::string& nickname, std::string server_name);
 
     bool isOperator(const std::string& nickname) const;
     bool isClient(const std::string& nickname) const;

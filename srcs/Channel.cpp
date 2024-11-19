@@ -147,22 +147,22 @@ void Channel::removeClient(const std::string& nickname) {
     }
 }
 
-void Channel::addOperator(const std::string& nickname) {
+void Channel::addOperator(const std::string& nickname, std::string server_name) {
     if (isOperator(nickname) == false && clients.find(nickname) != clients.end()) {
         operators.push_back(nickname);
-        std::string promotedOperator = ":localhost:6669 MODE " + getName() + " +o " + nickname + "\r\n";
+        std::string promotedOperator = ":" + server_name + " MODE " + getName() + " +o " + nickname + "\r\n";
         broadcast(promotedOperator);
         std::cout << "Client " << nickname << " promoted to operator in channel " << getName() << std::endl;
     }
 }
 
 
-void Channel::removeOperator(const std::string& nickname) {
+void Channel::removeOperator(const std::string& nickname, std::string server_name) {
     std::vector<std::string>::iterator pos = std::find(operators.begin(), operators.end(), nickname);
     if (pos != operators.end()) {
         operators.erase(pos);
 
-        std::string demotedOperator = ":localhost:6669 MODE " + getName() + " -o " + nickname + "\r\n";
+        std::string demotedOperator = ":" + server_name + " MODE " + getName() + " -o " + nickname + "\r\n";
         broadcast(demotedOperator);
 
         std::cout << "Client " << nickname << " removed as operator from channel " << getName() << std::endl;
