@@ -178,7 +178,7 @@ void Channel::sendNumericRepliesToJoiner(Client& joiner, const std::string& serv
     send(client_fd, join_msg.c_str(), join_msg.size(), 0);
 
     if (!topic.empty()) {
-        std::string topic_msg = ":" + server_name + " 332 " + nickname + " " + name + " :" + topic + "\r\n";
+        std::string topic_msg = ":" + server_name + " 332 " + nickname + " " + name + " " + topic + "\r\n";
         send(client_fd, topic_msg.c_str(), topic_msg.size(), 0);
     }
 
@@ -275,7 +275,7 @@ void Server::handle_join(int client_fd, const std::string& args) {
 
     // Send topic if it exists
     if (!channel.getTopic().empty()) {
-        std::string topic_msg = ":" + server_name + " 332 " + client_nickname + " " + channel_name + " :" + channel.getTopic() + "\r\n";
+        std::string topic_msg = ":" + server_name + " 332 " + client_nickname + " " + channel_name + " " + channel.getTopic() + "\r\n";
         send(client_fd, topic_msg.c_str(), topic_msg.size(), 0);
     }
 
@@ -521,9 +521,6 @@ void Server::handle_topic(int client_fd, const std::string& args) {
     std::getline(iss, topic);
 
     topic = my_trim(topic);
-    if (!topic.empty() && topic[0] == ':') {
-        topic = topic.substr(1);
-    }
 
     if (channels.find(channel_name) == channels.end()) {
         std::string msg = ":" + server_name + " 403 " + clients[client_fd].getNickname() + " " + channel_name + " :No such channel\r\n";
@@ -539,7 +536,7 @@ void Server::handle_topic(int client_fd, const std::string& args) {
             std::string msg = ":" + server_name + " 331 " + sender_nickname + " " + channel_name + " :No topic is set\r\n";
             send(client_fd, msg.c_str(), msg.size(), 0);
         } else {
-            std::string msg = ":" + server_name + " 332 " + sender_nickname + " " + channel_name + " :" + channel.getTopic() + "\r\n";
+            std::string msg = ":" + server_name + " 332 " + sender_nickname + " " + channel_name + " " + channel.getTopic() + "\r\n";
             send(client_fd, msg.c_str(), msg.size(), 0);
         }
         return;
@@ -552,10 +549,10 @@ void Server::handle_topic(int client_fd, const std::string& args) {
     }
 
     channel.setTopic(topic);
-    std::string topic_msg = ":" + sender_nickname + "!" + clients[client_fd].getUsername() + " TOPIC " + channel_name + " :" + topic + "\r\n";
+    std::string topic_msg = ":" + sender_nickname + "!" + clients[client_fd].getUsername() + " TOPIC " + channel_name + " " + topic + "\r\n";
     channel.broadcast(topic_msg);
 
-    std::cout << "Topic for channel " << channel_name << " set to: " << topic << " by " << sender_nickname << std::endl;
+    std::cout << "Topic for channel " << channel_name << " set to " << topic << " by " << sender_nickname << std::endl;
 }
 
 
